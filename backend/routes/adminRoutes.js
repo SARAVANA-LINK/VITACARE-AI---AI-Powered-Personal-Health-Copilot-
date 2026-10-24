@@ -712,16 +712,122 @@ router.post('/database/reset-empty', (req, res) => {
   }
 });
 
-// POST /api/admin/database/clear-user-data (Clear user data to empty state)
-router.post('/database/clear-user-data', (req, res) => {
+// ==========================================
+// AI HEALTH COPILOT & MEDICAL KNOWLEDGE RAG
+// ==========================================
+
+const medicalKnowledgeService = require('../services/medicalKnowledgeService');
+
+// GET /api/admin/ai/knowledge (List approved medical reference sources)
+router.get('/ai/knowledge', (req, res) => {
   try {
-    const report = db.resetToCleanEmptyState();
-    res.json(report);
+    const sources = medicalKnowledgeService.getAllSources();
+    res.json({ knowledgeSources: sources });
   } catch (err) {
-    console.error('Error during database reset:', err);
-    res.status(403).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to retrieve knowledge sources: ' + err.message });
+  }
+});
+
+// POST /api/admin/ai/knowledge (Create new authoritative medical reference document)
+router.post('/ai/knowledge', (req, res) => {
+  try {
+    const { sourceName, title, category, url, publishedDate, version, keywords, content, guidelineText } = req.body;
+    const newDoc = medicalKnowledgeService.addKnowledgeSource({
+      sourceName: sourceName || 'Clinical Reference',
+      title: title || 'Clinical Guideline',
+      category: category || 'General Medicine',
+      url: url || 'https://www.who.int',
+      publishedDate: publishedDate || new Date().toISOString().split('T')[0],
+      version: version || '1.0',
+      keywords: keywords || '',
+      content: content || guidelineText || ''
+    });
+    res.status(201).json({ success: true, knowledgeSource: newDoc });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/ai/knowledge/:id (Delete reference document)
+router.delete('/ai/knowledge/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    medicalKnowledgeService.deleteKnowledgeSource(id);
+    res.json({ success: true, message: 'Medical reference document deleted from RAG knowledge base.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/ai/knowledge/reindex (Trigger full RAG re-indexing)
+router.post('/ai/knowledge/reindex', (req, res) => {
+  try {
+    const result = medicalKnowledgeService.reindexAll();
+    res.json({ success: true, ...result, message: 'Medical knowledge base re-indexed successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/ai/config (Retrieve AI Provider and Model Settings)
+router.get('/ai/config', (req, res) => {
+  try {
+    const settings = db.findOne('admin_settings') || {};
+    const sources = medicalKnowledgeService.getAllSources();
+    res.json({
+      aiConfig: {
+        provider: 'Google Gemini',
+        primaryModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
+        fallbackModel: 'VitaCare Clinical Deterministic Engine',
+        defaultResponseLength: settings.defaultResponseLength || 'short',
+        supportedLanguages: ['en', 'ta', 'te', 'hi', 'ml', 'kn', 'bn', 'mr'],
+        emergencyContactNumber: '112',
+        ragKnowledgeCount: sources.length,
+        maxUploadSizeBytes: 10 * 1024 * 1024,
+        allowVoiceAssistant: true,
+        privacyMode: 'Strict User Isolation'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/admin/ai/config (Update configurable AI settings)
+router.put('/ai/config', (req, res) => {
+  try {
+    const { defaultResponseLength } = req.body;
+    db.update('admin_settings', () => true, {
+      defaultResponseLength: defaultResponseLength || 'short',
+      updatedAt: new Date().toISOString()
+    });
+    res.json({ success: true, message: 'AI configuration updated successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/ai/health (System health & audit telemetry)
+router.get('/ai/health', (req, res) => {
+  try {
+    const sources = medicalKnowledgeService.getAllSources();
+    const totalConvs = db.find('ai_conversations').length;
+    const totalDocs = db.find('user_documents').length;
+    res.json({
+      status: 'healthy',
+      geminiConfigured: !!process.env.GEMINI_API_KEY,
+      primaryModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
+      knowledgeSourcesCount: sources.length,
+      totalConversationsCount: totalConvs,
+      totalUserDocumentsCount: totalDocs,
+      uptimeSeconds: Math.round(process.uptime()),
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
 module.exports = router;
+
 

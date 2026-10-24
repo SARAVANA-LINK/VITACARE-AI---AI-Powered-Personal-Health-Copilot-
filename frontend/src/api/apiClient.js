@@ -421,6 +421,10 @@ class ApiClient {
     return this.request('/ai/user-documents');
   }
 
+  deleteUserChatDocument(id) {
+    return this.request(`/ai/user-documents/${id}`, { method: 'DELETE' });
+  }
+
   // Admin AI Knowledge Base & RAG Management
   getAdminKnowledge() {
     return this.request('/admin/ai/knowledge');

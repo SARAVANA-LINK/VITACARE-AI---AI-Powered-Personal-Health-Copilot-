@@ -1,11 +1,12 @@
 const db = require('../db');
+const medicalKnowledgeService = require('./medicalKnowledgeService');
 
 // Multi-language Clinical AI Response Templates & Translators
 const AI_LOCALES = {
   en: {
     emergencyTitle: "⚠️ **URGENT MEDICAL SAFETY ALERT**",
-    emergencyBody: "The symptoms you mentioned may indicate an acute medical emergency.\n\n• **Immediate Action**: Please stop using this chat and call emergency services immediately (911, 108, or your local emergency number).\n• **Emergency SOS**: You can trigger the VitaCare Emergency SOS button on your dashboard to instantly alert your configured emergency contacts and guardian.\n• VitaCare AI is an assistive organizer and copilot, **NOT an emergency response system or a physician**.\n\nPlease seek professional emergency medical evaluation immediately.",
-    emergencyDisclaimer: "VitaCare AI is not a doctor and does not provide emergency medical diagnosis or treatment.",
+    emergencyBody: "The symptoms you mentioned may indicate an acute medical emergency.\n\n• **Immediate Action**: Please stop using this chat and call emergency services immediately (112 in India, 911, or your local emergency number).\n• **Emergency SOS**: You can trigger the Emergency SOS button on your dashboard to instantly alert your configured emergency contacts and guardian.\n• AI Health Copilot is an educational health assistant, **NOT an emergency response system or a physician**.\n\nPlease seek professional emergency medical evaluation immediately.",
+    emergencyDisclaimer: "AI Health Copilot is not a doctor and does not provide emergency medical diagnosis or treatment.",
     medScheduleHeader: "### 💊 Today's Medication Schedule\n\n",
     medScheduledFor: "scheduled for",
     instructions: "Instructions",
@@ -39,24 +40,19 @@ const AI_LOCALES = {
     noOverlap: "Both reports represent different clinical panels. You can view full granular details in the **Compare Reports** view.\n",
     singleReport: "You currently have **1 uploaded report** ({{type}} from {{date}}).\nUpload a second report to perform an automatic side-by-side metric comparison!",
     noReports: "You have not uploaded any health reports yet. Click **+ ADD HEALTH REPORT** on your dashboard to begin.",
-    summaryHeader: "### 🩺 VitaCare Health Summary for {{name}}\n\nHere is your current health profile at a glance:\n",
+    summaryHeader: "### 🩺 Health Summary for {{name}}\n\nHere is your current health profile at a glance:\n",
     activeMedsSummary: "• **Active Medications**: {{count}} registered\n",
     todayDosesSummary: "• **Today's Scheduled Doses**: {{count}} events\n",
     reportsSummary: "• **Verified Health Reports**: {{count}} document(s)\n",
     vitalsSummary: "• **Tracked Vitals**: {{count}} measurement(s)\n",
     allergiesSummary: "• **Known Allergies**: {{allergies}}\n",
-    suggestedHeader: "\nYou can ask me specific questions such as:\n- *\"What medicines do I have today?\"*\n- *\"What is my latest blood glucose level?\"*\n- *\"Compare my recent lab reports\"*\n- *\"Explain my hemoglobin reading\"*\n",
-    modeSimplePrefix: "\n\n💡 **In Simple Words:**\n",
-    modeStandardPrefix: "\n\n📋 **Medical Context:**\n",
-    modeDetailedPrefix: "\n\n🔬 **Clinical Reference & Biological Context:**\n",
-    modeDetailedSuffix: "\n*Physiological note*: Laboratory reference ranges vary slightly across testing methodologies and regional clinical standards.",
-    disclaimer: "VitaCare AI organizes your verified records and provides educational context. It does not replace clinical consultation with your licensed physician."
+    disclaimer: "I'm an AI health assistant, not a doctor. I can help explain health information, but a qualified healthcare professional should make medical decisions."
   },
 
   ta: {
     emergencyTitle: "⚠️ **அவசர மருத்துவ பாதுகாப்பு எச்சரிக்கை**",
-    emergencyBody: "நீங்கள் குறிப்பிட்ட அறிகுறிகள் தீவிர மருத்துவ அவசரநிலையைக் குறிக்கலாம்.\n\n• **உடனடி நடவடிக்கை**: தயவுசெய்து அவசர மருத்துவ சேவைகளை (108 / 112) உடனே அழைக்கவும்.\n• **அவசர SOS**: உங்கள் டாஷ்போர்டில் உள்ள அவசர SOS பொத்தானை அழுத்தி பாதுகாவலர் மற்றும் குடும்பத்தினருக்கு உடனடியாக எச்சரிக்கை அனுப்பலாம்.\n• விடாகேர் AI என்பது ஒரு சுகாதார வழிகாட்டி மட்டுமே, **மருத்துவர் அல்ல**.\n\nஉடனடியாக மருத்துவ நிபுணரின் உதவியை நாடுங்கள்.",
-    emergencyDisclaimer: "விடாகேர் AI மருத்துவர் அல்ல, அவசர மருத்துவ சிகிச்சை அளிக்காது.",
+    emergencyBody: "நீங்கள் குறிப்பிட்ட அறிகுறிகள் தீவிர மருத்துவ அவசரநிலையைக் குறிக்கலாம்.\n\n• **உடனடி நடவடிக்கை**: தயவுசெய்து அவசர மருத்துவ சேவைகளை (112 / 108) உடனே அழைக்கவும்.\n• **அவசர SOS**: உங்கள் டாஷ்போர்டில் உள்ள அவசர SOS பொத்தானை அழுத்தி பாதுகாவலர் மற்றும் குடும்பத்தினருக்கு உடனடியாக எச்சரிக்கை அனுப்பலாம்.\n• AI Health Copilot என்பது ஒரு சுகாதார வழிகாட்டி மட்டுமே, **மருத்துவர் அல்ல**.\n\nஉடனடியாக மருத்துவ நிபுணரின் உதவியை நாடுங்கள்.",
+    emergencyDisclaimer: "AI Health Copilot மருத்துவர் அல்ல, அவசர மருத்துவ சிகிச்சை அளிக்காது.",
     medScheduleHeader: "### 💊 இன்றைய மருந்து அட்டவணை\n\n",
     medScheduledFor: "திட்டமிடப்பட்ட நேரம்",
     instructions: "வழிமுறைகள்",
@@ -85,7 +81,7 @@ const AI_LOCALES = {
     currentReading: "தற்போதைய அளவீடு",
     stdTarget: "நிலையான இலக்கு: < 120/80 mmHg",
     noBpFound: "உங்கள் கணக்கில் இரத்த அழுத்த அளவீடுகள் எதுவும் இல்லை.",
-    bpKnowledge: "இரத்த அழுத்தம் என்பது சிஸ்டாலிக் (இதயம் துடிக்கும் போது ஏற்படும் அழுத்தம்) மற்றும் டயஸ்டாலிக் (இதயம் ஓய்வெடுக்கும் போது ஏற்படும் அழுத்தம்) ஆகியவற்றைக் குறிக்கும். சிறந்த ஓய்வு இரத்த அழுத்தம் 120/80 mmHg-க்கு கீழ் இருக்க வேண்டும்.",
+    bpKnowledge: "இரத்த அழுத்தம் என்பது சிஸ்டாலிக் மற்றும் டயஸ்டாலிக் ஆகியவற்றைக் குறிக்கும். சிறந்த ஓய்வு இரத்த அழுத்தம் 120/80 mmHg-க்கு கீழ் இருக்க வேண்டும்.",
     compareHeader: "### 📊 மருத்துவ ஆய்வக அறிக்கைகள் ஒப்பீடு\n\nஉங்கள் சமீபத்திய இரண்டு அறிக்கைகளின் ஒப்பீடு:\n",
     noOverlap: "இரண்டு அறிக்கைகளும் வெவ்வேறு சோதனைகளைக் குறிக்கின்றன. முழு விவரங்களை **அறிக்கைகள் ஒப்பீடு** பிரிவில் காணலாம்.\n",
     singleReport: "தற்போது **1 அறிக்கை** மட்டுமே உள்ளது ({{type}} - {{date}}).\nஇரண்டாவது அறிக்கையைப் பதிவேற்றினால் தானாக ஒப்பிட்டுப் பார்க்கலாம்!",
@@ -96,18 +92,13 @@ const AI_LOCALES = {
     reportsSummary: "• **சரிபார்க்கப்பட்ட அறிக்கைகள்**: {{count}} ஆவணங்கள்\n",
     vitalsSummary: "• **கண்காணிக்கப்படும் அளவீடுகள்**: {{count}} அளவீடுகள்\n",
     allergiesSummary: "• **தெரிந்த ஒவ்வாமைகள்**: {{allergies}}\n",
-    suggestedHeader: "\nநீங்கள் என்னிடம் கேட்கலாம்:\n- *\"இன்று எனக்கு என்ன மருந்துகள் உள்ளன?\"*\n- *\"எனது சமீபத்திய இரத்த சர்க்கரை அளவு என்ன?\"*\n- *\"எனது சமீபத்திய அறிக்கைகளை ஒப்பிடு\"*\n- *\"எனது ஹீமோகுளோபின் அளவை விளக்கு\"*\n",
-    modeSimplePrefix: "\n\n💡 **எளிய விளக்கம்:**\n",
-    modeStandardPrefix: "\n\n📋 **மருத்துவ விளக்கம்:**\n",
-    modeDetailedPrefix: "\n\n🔬 **விரிவான உடலியல் விளக்கம்:**\n",
-    modeDetailedSuffix: "\n*குறிப்பு*: ஆய்வக குறிப்பு வரம்புகள் பரிசோதனை முறையைப் பொறுத்து சற்று மாறுபடலாம்.",
-    disclaimer: "விடாகேர் AI உங்கள் சரிபார்க்கப்பட்ட பதிவுகளை ஒழுங்கமைத்து விழிப்புணர்வை மட்டுமே வழங்குகிறது. இது மருத்துவ ஆலோசனைக்கு மாற்றாகாது."
+    disclaimer: "நான் ஒரு AI சுகாதார உதவியாளர், மருத்துவர் அல்ல. மருத்துவ முடிவுகளை உங்கள் மருத்துவரிடம் ஆலோசிக்கவும்."
   },
 
   te: {
     emergencyTitle: "⚠️ **అత్యవసర వైద్య భద్రతా హెచ్చరిక**",
-    emergencyBody: "మీరు పేర్కొన్న లక్షణాలు తీవ్రమైన వైద్య అత్యవసర పరిస్థితిని సూచించవచ్చు.\n\n• **తక్షణ చర్య**: దయచేసి వెంటనే అత్యవసర సేవలకు (108 / 112) కాల్ చేయండి.\n• **ఎమర్జెన్సీ SOS**: మీ డ్యాష్‌బోర్డ్‌లోని ఎమర్జెన్సీ SOS బటన్‌ను నొక్కి సంరక్షకులకు తక్షణమే హెచ్చరిక పంపవచ్చు.\n• విటాకేర్ AI కేవలం ఆరోగ్య సహాయకుడు మాత్రమే, **వైద్యుడు కాదు**.\n\nవెంటనే వైద్యుడిని సంప్రదించండి.",
-    emergencyDisclaimer: "విటాకేర్ AI వైద్యుడు కాదు, అత్యవసర చికిత్స అందించదు.",
+    emergencyBody: "మీరు పేర్కొన్న లక్షణాలు తీవ్రమైన వైద్య అత్యవసర పరిస్థితిని సూచించవచ్చు.\n\n• **తక్షణ చర్య**: దయచేసి వెంటనే అత్యవసర సేవలకు (112 / 108) కాల్ చేయండి.\n• **ఎమర్జెన్సీ SOS**: మీ డ్యాష్‌బోర్డ్‌లోని ఎమర్జెన్సీ SOS బటన్‌ను నొక్కి సంరక్షకులకు తక్షణమే హెచ్చరిక పంపవచ్చు.\n• AI Health Copilot కేవలం ఆరోగ్య సహాయకుడు మాత్రమే, **వైద్యుడు కాదు**.\n\nవెంటనే వైద్యుడిని సంప్రదించండి.",
+    emergencyDisclaimer: "AI Health Copilot వైద్యుడు కాదు, అత్యవసర చికిత్స అందించదు.",
     medScheduleHeader: "### 💊 నేటి మందుల షెడ్యూల్\n\n",
     medScheduledFor: "షెడ్యూల్ సమయం",
     instructions: "సూచనలు",
@@ -140,127 +131,20 @@ const AI_LOCALES = {
     compareHeader: "### 📊 ల్యాబ్ నివేదికల పోలిక\n\nమీ ఇటీవలి రెండు నివేదికల పోలిక:\n",
     noOverlap: "రెండు నివేదికలలో వేర్వేరు పరీక్షలు ఉన్నాయి. పూర్తి వివరాలను **నివేదికల పోలిక** వీక్షణలో చూడవచ్చు.\n",
     singleReport: "ప్రస్తుతం **1 నివేదిక** మాత్రమే ఉంది ({{type}} - {{date}}).\nరెండవ నివేదికను అప్‌లోడ్ చేసి ఆటోమేటిక్‌గా పోల్చండి!",
-    noReports: "ఆరోగ్య నివేదికలు ఏవీ అప్‌లోడ్ చేయలేదు. డ్యాష్‌బోర్డ్‌లో **+ ల్యాబ్ రిపోర్ట్ జోడించండి** క్లిక్ చేయండి.",
+    noReports: "ఆరోగ్య నివేదికలు ఏవీ అప్‌లోడ్ చేయలేదు.",
     summaryHeader: "### 🩺 {{name}} గారి ఆరోగ్య సారాంశం\n\nమీ ప్రస్తుత ఆరోగ్య ప్రొఫైల్:\n",
     activeMedsSummary: "• **యాక్టివ్ మందులు**: {{count}} నమోదయ్యాయి\n",
     todayDosesSummary: "• **నేటి మందుల మోతాదులు**: {{count}} ఈవెంట్‌లు\n",
     reportsSummary: "• **ధృవీకరించిన నివేదికలు**: {{count}} పత్రాలు\n",
     vitalsSummary: "• **ట్రాక్ చేసిన కొలతలు**: {{count}} కొలతలు\n",
     allergiesSummary: "• **అలెర్జీలు**: {{allergies}}\n",
-    suggestedHeader: "\nమీరు నన్ను ఇలా అడగవచ్చు:\n- *\"ఈ రోజు నాకు ఏ మందులు ఉన్నాయి?\"*\n- *\"నా తాజా బ్లడ్ షుగర్ స్థాయి ఎంత?\"*\n- *\"నా ఇటీవలి నివేదికలను పోల్చండి\"*\n- *\"నా హిమోగ్లోబిన్ గురించి వివరించండి\"*\n",
-    modeSimplePrefix: "\n\n💡 **సరళమైన వివరణ:**\n",
-    modeStandardPrefix: "\n\n📋 **క్లినికల్ వివరణ:**\n",
-    modeDetailedPrefix: "\n\n🔬 **వివరణాత్మక బయోలాజికల్ వివరణ:**\n",
-    modeDetailedSuffix: "\n*గమనిక*: ల్యాబ్ సూచన పరిధులు పరీక్షా విధానాన్ని బట్టి మారవచ్చు.",
-    disclaimer: "విటాకేర్ AI విద్యాపరమైన సమాచారాన్ని మాత్రమే అందిస్తుంది. ఇది వైద్యుడి సలహాకు ప్రత్యామ్నాయం కాదు."
-  },
-
-  ml: {
-    emergencyTitle: "⚠️ **അടിയന്തര മെഡിക്കൽ സുരക്ഷാ മുന്നറിയിപ്പ്**",
-    emergencyBody: "നിങ്ങൾ സൂചിപ്പിച്ച ലക്ഷണങ്ങൾ ഗുരുതരമായ മെഡിക്കൽ അടിയന്തരാവസ്ഥയെ സൂചിപ്പിക്കാം.\n\n• **ഉടൻ ചെയ്യേണ്ടത്**: ദയവായി അടിയന്തര മെഡിക്കൽ സേവനങ്ങളെ (108 / 112) ഉടൻ വിളിക്കുക.\n• **എമർജൻസി SOS**: ഡാഷ്‌ബോർഡിലെ എമർജൻസി SOS ബട്ടൺ അമർത്തി രക്ഷാകർത്താവിനെ ഉടൻ അറിയിക്കാം.\n• വിറ്റാകെയർ AI ഒരു സഹായി മാത്രമാണ്, **ഡോക്ടറല്ല**.\n\nഉടൻ ഒരു ഡോക്ടറെ സമീപിക്കുക.",
-    emergencyDisclaimer: "വിറ്റാകെയർ AI ഡോക്ടറല്ല, അടിയന്തര ചികിത്സ നൽകുന്നില്ല.",
-    medScheduleHeader: "### 💊 ഇന്നത്തെ മരുന്ന് സമയം\n\n",
-    medScheduledFor: "നിശ്ചയിച്ച സമയം",
-    instructions: "നിർദ്ദേശങ്ങൾ",
-    statusLabel: "നില",
-    statusTaken: "✅ കഴിച്ചു (സ്ഥിരീകരിച്ചു)",
-    statusMissed: "❌ നഷ്ടപ്പെട്ടു",
-    statusUpcoming: "⏳ വരാനിരിക്കുന്നത്",
-    nextDose: "അടുത്ത മരുന്ന്",
-    activeMedsCount: "നിങ്ങൾക്ക് **{{count}}** സജീവ മരുന്നുകൾ ഉണ്ട്:\n",
-    noMedsToday: "ഇന്ന് കഴിക്കാൻ മരുന്നുകൾ ഒന്നും നിശ്ചയിച്ചിട്ടില്ല. പുതിയ കുറിപ്പടി അപ്‌ലോഡ് ചെയ്യാം.",
-    medKnowledge: "ഡോക്ടർ നിർദ്ദേശിച്ച കൃത്യമായ സമയത്ത് ഭക്ഷണത്തോടൊപ്പം മരുന്നുകൾ മുടങ്ങാതെ കഴിക്കുക.",
-    glucoseHeader: "### 🩸 നിങ്ങളുടെ രക്തത്തിലെ പഞ്ചസാരയുടെ അളവ് (Blood Glucose)\n\n",
-    recordedOn: "രേഖപ്പെടുത്തിയ തീയതി",
-    statusIndicator: "നില",
-    elevatedNote: "\n*കുറിപ്പ്*: ചില ഗ്ലൂക്കോസ് അളവുകൾ സാധാരണ പരിധിയേക്കാൾ കൂടുതലാണ്.",
-    noGlucoseFound: "രക്തത്തിലെ പഞ്ചസാരയുടെ അളവുകൾ ഇതുവരെ രേഖപ്പെടുത്തിയിട്ടില്ല.",
-    glucoseKnowledge: "വെറും വയറ്റിലെ രക്തത്തിലെ പഞ്ചസാര സാധാരണയായി 70-99 mg/dL ആയിരിക്കണം. 100-125 mg/dL പ്രീ-ഡയബറ്റിസിനെയും 126 mg/dL അല്ലെങ്കിൽ അതിൽ കൂടുതലോ പ്രമേഹത്തെയും സൂചിപ്പിക്കുന്നു.",
-    hbHeader: "### 🔬 നിങ്ങളുടെ ഹീമോഗ്ലോബിൻ അളവ് (Hemoglobin - Hb)\n\n",
-    stdRefRange: "സാധാരണ അളവ് പരിധി",
-    recordedDate: "രേഖപ്പെടുത്തിയ തീയതി",
-    verifiedByPatient: "രോഗി സ്ഥിരീകരിച്ചു",
-    trendDiff: "മാറ്റം: മുമ്പത്തെ അളവ് {{date}}-ൽ **{{prev}}** ആയിരുന്നു (വ്യത്യാസം: {{diff}}).",
-    noHbFound: "ഹീമോഗ്ലോബിൻ അളവ് രേഖപ്പെടുത്തിയിട്ടില്ല. സമ്പൂർണ്ണ രക്തപരിശോധന (CBC) റിപ്പോർട്ട് അപ്‌ലോഡ് ചെയ്യുക.",
-    hbKnowledge: "ചുവന്ന രക്താണുക്കളിൽ ഓക്സിജൻ വഹിക്കുന്ന പ്രോട്ടീനാണ് ഹീമോഗ്ലോബിൻ. പുരുഷന്മാർക്ക് 13.5–17.5 g/dL ഉം സ്ത്രീകൾക്ക് 12.0–15.5 g/dL ഉം സാധാരണ പരിധിയാണ്.",
-    bpHeader: "### 💓 നിങ്ങളുടെ രക്തസമ്മർദ്ദം (Blood Pressure - BP)\n\n",
-    currentReading: "നിലവിലെ അളവ്",
-    stdTarget: "സാധാരണ ലക്ഷ്യം: < 120/80 mmHg",
-    noBpFound: "രക്തസമ്മർദ്ദ അളവുകൾ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല.",
-    bpKnowledge: "രക്തസമ്മർദ്ദം സിസ്റ്റോളിക്, ഡയസ്റ്റോളിക് എന്നിവ ചേർന്നതാണ്. സാധാരണ രക്തസമ്മർദ്ദം 120/80 mmHg-ൽ താഴെയായിരിക്കണം.",
-    compareHeader: "### 📊 ലാബ് റിപ്പോർട്ടുകളുടെ താരതമ്യം\n\nഏറ്റവും പുതിയ രണ്ട് റിപ്പോർട്ടുകളുടെ താരതമ്യം:\n",
-    noOverlap: "രണ്ട് റിപ്പോർട്ടുകളിലും വ്യത്യസ്ത പരിശോധനകളാണ് ഉള്ളത്. പൂർണ്ണ വിവരങ്ങൾ **റിപ്പോർട്ടുകൾ താരതമ്യം** കാഴ്‌ചയിൽ കാണാം.\n",
-    singleReport: "നിലവിൽ **1 റിപ്പോർട്ട്** മാത്രമേയുള്ളൂ ({{type}} - {{date}}).\nരണ്ടാമത്തെ റിപ്പോർട്ട് അപ്‌ലോഡ് ചെയ്ത് താരതമ്യം ചെയ്യുക!",
-    noReports: "ആരോഗ്യ റിപ്പോർട്ടുകൾ ഒന്നും അപ്‌ലോഡ് ചെയ്തിട്ടില്ല.",
-    summaryHeader: "### 🩺 {{name}} യുടെ ആരോഗ്യ സംഗ്രഹം\n\nനിങ്ങളുടെ നിലവിലെ ആരോഗ്യ വിവരങ്ങൾ:\n",
-    activeMedsSummary: "• **സജീവ മരുന്നുകൾ**: {{count}} എണ്ണം\n",
-    todayDosesSummary: "• **ഇന്നത്തെ മരുന്ന് സമയങ്ങൾ**: {{count}} ഇവന്റുകൾ\n",
-    reportsSummary: "• **സ്ഥിരീകരിച്ച റിപ്പോർട്ടുകൾ**: {{count}} രേഖകൾ\n",
-    vitalsSummary: "• **ട്രാക്ക് ചെയ്ത അളവുകൾ**: {{count}} അളവുകൾ\n",
-    allergiesSummary: "• **അലർജികൾ**: {{allergies}}\n",
-    suggestedHeader: "\nനിങ്ങൾക്ക് ചോദിക്കാം:\n- *\"ഇന്ന് എനിക്ക് എന്തൊക്കെ മരുന്നുകളുണ്ട്?\"*\n- *\"എന്റെ രക്തത്തിലെ പഞ്ചസാര എത്രയാണ്?\"*\n- *\"എന്റെ സമീപകാല റിപ്പോർട്ടുകൾ താരതമ്യം ചെയ്യുക\"*\n- *\"എന്റെ ഹീമോഗ്ലോബിൻ വിശദീകരിക്കുക\"*\n",
-    modeSimplePrefix: "\n\n💡 **ലളിതമായ വിവരണം:**\n",
-    modeStandardPrefix: "\n\n📋 **മെഡിക്കൽ വിവരണം:**\n",
-    modeDetailedPrefix: "\n\n🔬 **വിശദമായ ബയോളജിക്കൽ വിവരണം:**\n",
-    modeDetailedSuffix: "\n*കുറിപ്പ്*: ലാബ് റഫറൻസ് പരിധികൾ പരിശോധനാ രീതി അനുസരിച്ച് വ്യത്യാസപ്പെടാം.",
-    disclaimer: "വിറ്റാകെയർ AI ആരോഗ്യ വിവരങ്ങൾ മാത്രമാണ് നൽകുന്നത്. ഇത് ഡോക്ടറുടെ ചികിത്സക്ക് പകരമല്ല."
-  },
-
-  kn: {
-    emergencyTitle: "⚠️ **ತುರ್ತು ವೈದ್ಯಕೀಯ ಸುರಕ್ಷತಾ ಎಚ್ಚರಿಕೆ**",
-    emergencyBody: "ನೀವು ತಿಳಿಸಿದ ಲಕ್ಷಣಗಳು ಗಂಭೀರ ವೈದ್ಯಕೀಯ ತುರ್ತು ಪರಿಸ್ಥಿತಿಯನ್ನು ಸೂಚಿಸಬಹುದು.\n\n• **ತಕ್ಷಣದ ಕ್ರಮ**: ದಯವಿಟ್ಟು ತಕ್ಷಣವೇ ತುರ್ತು ಸೇವೆಗಳಿಗೆ (108 / 112) ಕರೆ ಮಾಡಿ.\n• **ತುರ್ತು SOS**: ಡ್ಯಾಶ್‌ಬೋರ್ಡ್‌ನಲ್ಲಿರುವ ತುರ್ತು SOS ಬಟನ್ ಒತ್ತುವ ಮೂಲಕ ಪೋಷಕರಿಗೆ ತಕ್ಷಣ ಎಚ್ಚರಿಕೆ ಕಳುಹಿಸಬಹುದು.\n• ವಿಟಾಕೇರ್ AI ಕೇವಲ ಆರೋಗ್ಯ ಸಹಾಯಕ, **ವೈದ್ಯರಲ್ಲ**.\n\nತಕ್ಷಣವೇ ವೈದ್ಯರನ್ನು ಸಂಪರ್ಕಿಸಿ.",
-    emergencyDisclaimer: "ವಿಟಾಕೇರ್ AI ವೈದ್ಯರಲ್ಲ, ತುರ್ತು ಚಿಕಿತ್ಸೆ ನೀಡುವುದಿಲ್ಲ.",
-    medScheduleHeader: "### 💊 ಇಂದಿನ ಔಷಧಿ ವೇಳಾಪಟ್ಟಿ\n\n",
-    medScheduledFor: "ನಿಗದಿತ ಸಮಯ",
-    instructions: "ಸೂಚನೆಗಳು",
-    statusLabel: "ಸ್ಥಿತಿ",
-    statusTaken: "✅ ತೆಗೆದುಕೊಳ್ಳಲಾಗಿದೆ (ಪರಿಶೀಲಿಸಲಾಗಿದೆ)",
-    statusMissed: "❌ ತಪ್ಪಿಹೋಗಿದೆ",
-    statusUpcoming: "⏳ ಮುಂಬರುವ",
-    nextDose: "ಮುಂದಿನ ಔಷಧಿ",
-    activeMedsCount: "ನಿಮ್ಮ ಪ್ರೊಫೈಲ್‌ನಲ್ಲಿ **{{count}}** ಸಕ್ರಿಯ ಔಷಧಿಗಳಿವೆ:\n",
-    noMedsToday: "ಇಂದು ಯಾವುದೇ ಔಷಧಿಗಳು ನಿಗದಿಯಾಗಿಲ್ಲ. ಹೊಸ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಅಪ್‌ಲೋಡ್ ಮಾಡಬಹುದು.",
-    medKnowledge: "ವೈದ್ಯರು ಸೂಚಿಸಿದಂತೆ ಸರಿಯಾದ ಸಮಯದಲ್ಲಿ ಊಟದೊಂದಿಗೆ ಔಷಧಿಗಳನ್ನು ನಿಯಮಿತವಾಗಿ ತೆಗೆದುಕೊಳ್ಳಿ.",
-    glucoseHeader: "### 🩸 ನಿಮ್ಮ ರಕ್ತದ ಗ್ಲೂಕೋಸ್ ದಾಖಲೆಗಳು (Blood Glucose)\n\n",
-    recordedOn: "ದಾಖಲಾದ ದಿನಾಂಕ",
-    statusIndicator: "ಸ್ಥಿತಿ",
-    elevatedNote: "\n*ಗಮನಿಸಿ*: ಕೆಲವು ಸಕ್ಕರೆ ಅಳತೆಗಳು ಸಾಮಾನ್ಯ ಮಿತಿಗಿಂತ ಹೆಚ್ಚಾಗಿದೆ.",
-    noGlucoseFound: "ನಿಮ್ಮ ವರದಿಗಳಲ್ಲಿ ರಕ್ತದ ಸಕ್ಕರೆ ಅಳತೆಗಳು ಇನ್ನೂ ದಾಖಲಾಗಿಲ್ಲ.",
-    glucoseKnowledge: "ಖಾಲಿ ಹೊಟ್ಟೆಯಲ್ಲಿ ರಕ್ತದ ಸಕ್ಕರೆ ಸಾಮಾನ್ಯ ಪ್ರಮಾಣ 70-99 mg/dL ಇರಬೇಕು. 100-125 mg/dL ಪ್ರಿ-ಡಯಾಬಿಟಿಸ್ ಮತ್ತು 126 mg/dL ಅಥವಾ ಅದಕ್ಕಿಂತ ಹೆಚ್ಚು ಮಧುಮೇಹವನ್ನು ಸೂಚಿಸುತ್ತದೆ.",
-    hbHeader: "### 🔬 ನಿಮ್ಮ ಹಿಮೋಗ್ಲೋಬಿನ್ ಮಟ್ಟ (Hemoglobin - Hb)\n\n",
-    stdRefRange: "ಪ್ರಮಾಣಿತ ಉಲ್ಲೇಖ ಶ್ರೇಣಿ",
-    recordedDate: "ದಾಖಲಾದ ದಿನಾಂಕ",
-    verifiedByPatient: "ರೋಗಿಯಿಂದ ಪರಿಶೀಲಿಸಲಾಗಿದೆ",
-    trendDiff: "ಬದಲಾವಣೆ: ಹಿಂದಿನ ಅಳತೆ {{date}} ರಂದು **{{prev}}** ಇತ್ತು (ವ್ಯತ್ಯಾಸ: {{diff}}).",
-    noHbFound: "ಹಿಮೋಗ್ಲೋಬಿನ್ ಅಳತೆ ದಾಖಲಾಗಿಲ್ಲ. ಸಂಪೂರ್ಣ ರಕ್ತ ಪರೀಕ್ಷೆ (CBC) ವರದಿ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ.",
-    hbKnowledge: "ಹಿಮೋಗ್ಲೋಬಿನ್ ಕೆಂಪು ರಕ್ತ ಕಣಗಳಲ್ಲಿ ಆಮ್ಲಜನಕವನ್ನು ಸಾಗಿಸುವ ಪ್ರೋಟೀನ್ ಆಗಿದೆ. ಪುರುಷರಿಗೆ 13.5–17.5 g/dL ಮತ್ತು ಮಹಿಳೆಯರಿಗೆ 12.0–15.5 g/dL ಸಾಮಾನ್ಯ ಶ್ರೇಣಿ.",
-    bpHeader: "### 💓 ನಿಮ್ಮ ರಕ್ತದೊತ್ತಡ ದಾಖಲೆ (Blood Pressure - BP)\n\n",
-    currentReading: "ಪ್ರಸ್ತುತ ಅಳತೆ",
-    stdTarget: "ಸಾಮಾನ್ಯ ಗುರಿ: < 120/80 mmHg",
-    noBpFound: "ಯಾವುದೇ ರಕ್ತದೊತ್ತಡ ಅಳತೆಗಳು ದಾಖಲಾಗಿಲ್ಲ.",
-    bpKnowledge: "ರಕ್ತದೊತ್ತಡವು ಸಿಸ್ಟೊಲಿಕ್ ಮತ್ತು ಡಯಾಸ್ಟೊಲಿಕ್ ಒಳಗೊಂಡಿರುತ್ತದೆ. ಸಾಮಾನ್ಯ ರಕ್ತದೊತ್ತಡ 120/80 mmHg ಗಿಂತ ಕಡಿಮೆಯಿರಬೇಕು.",
-    compareHeader: "### 📊 ಲ್ಯಾಬ್ ವರದಿಗಳ ಹೋಲಿಕೆ\n\nಇತ್ತೀಚಿನ ಎರಡು ವರದಿಗಳ ಹೋಲಿಕೆ:\n",
-    noOverlap: "ಎರಡೂ ವರದಿಗಳಲ್ಲಿ ವಿಭಿನ್ನ ಪರೀಕ್ಷೆಗಳಿವೆ. ಪೂರ್ಣ ವಿವರಗಳನ್ನು **ವರದಿಗಳ ಹೋಲಿಕೆ** ನೋಟದಲ್ಲಿ ವೀಕ್ಷಿಸಿ.\n",
-    singleReport: "ಪ್ರಸ್ತುತ **1 ವರದಿ** ಮಾತ್ರ ಲಭ್ಯವಿದೆ ({{type}} - {{date}}).\nಎರಡನೇ ವರದಿ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ ಹೋಲಿಸಿ ನೋಡಿ!",
-    noReports: "ಆರೋಗ್ಯ ವರದಿಗಳನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಲಾಗಿಲ್ಲ.",
-    summaryHeader: "### 🩺 {{name}} ಅವರ ಆರೋಗ್ಯ ಸಾರಾಂಶ\n\nನಿಮ್ಮ ಪ್ರಸ್ತುತ ಆರೋಗ್ಯ ವಿವರಗಳು:\n",
-    activeMedsSummary: "• **ಸಕ್ರಿಯ ಔಷಧಿಗಳು**: {{count}} ನೋಂದಣಿಯಾಗಿವೆ\n",
-    todayDosesSummary: "• **ಇಂದಿನ ಔಷಧಿ ಸಮಯಗಳು**: {{count}} ಘಟನೆಗಳು\n",
-    reportsSummary: "• **ಪರಿಶೀಲಿಸಿದ ವರದಿಗಳು**: {{count}} ದಾಖಲೆಗಳು\n",
-    vitalsSummary: "• **ಟ್ರ್ಯಾಕ್ ಮಾಡಿದ ಅಳತೆಗಳು**: {{count}} ಅಳತೆಗಳು\n",
-    allergiesSummary: "• **ಅಲರ್ಜಿಗಳು**: {{allergies}}\n",
-    suggestedHeader: "\nನೀವು ಕೇಳಬಹುದು:\n- *\"ಇಂದು ನನಗೆ ಯಾವ ಔಷಧಿಗಳಿವೆ?\"*\n- *\"ನನ್ನ ರಕ್ತದ ಸಕ್ಕರೆ ಮಟ್ಟ ಎಷ್ಟು?\"*\n- *\"ನನ್ನ ಇತ್ತೀಚಿನ ವರದಿಗಳನ್ನು ಹೋಲಿಸಿ\"*\n- *\"ನನ್ನ ಹಿಮೋಗ್ಲೋಬಿನ್ ವಿವರಿಸಿ\"*\n",
-    modeSimplePrefix: "\n\n💡 **ಸರಳ ವಿವರಣೆ:**\n",
-    modeStandardPrefix: "\n\n📋 **ವೈದ್ಯಕೀಯ ವಿವರಣೆ:**\n",
-    modeDetailedPrefix: "\n\n🔬 **ವಿವರವಾದ ಜೈವಿಕ ವಿವರಣೆ:**\n",
-    modeDetailedSuffix: "\n*ಗಮನಿಸಿ*: ಲ್ಯಾಬ್ ಉಲ್ಲೇಖ ಶ್ರೇಣಿಗಳು ಪರೀಕ್ಷಾ ವಿಧಾನದ ಆಧಾರದ ಮೇಲೆ ಬದಲಾಗಬಹುದು.",
-    disclaimer: "ವಿಟಾಕೇರ್ AI ಶೈಕ್ಷಣಿಕ ಮಾಹಿತಿಯನ್ನು ಮಾತ್ರ ನೀಡುತ್ತದೆ. ಇದು ವೈದ್ಯರ ಸಲಹೆಗೆ ಪರ್ಯಾಯವಲ್ಲ."
+    disclaimer: "నేను AI ఆరోగ్య సహాయకుడిని, డాక్టర్‌ని కాదు. వైద్య నిర్ణయాలకు మీ వైద్యుడిని సంప్రదించండి."
   },
 
   hi: {
     emergencyTitle: "⚠️ **तत्काल चिकित्सा सुरक्षा चेतावनी**",
-    emergencyBody: "आपके द्वारा बताए गए लक्षण गंभीर आपातकालीन स्थिति का संकेत हो सकते हैं।\n\n• **तत्काल कार्रवाई**: कृपया तुरंत आपातकालीन सेवाओं (108 / 112) को कॉल करें।\n• **आपातकालीन SOS**: अभिभावक को तुरंत सतर्क करने के लिए डैशबोर्ड पर SOS बटन दबाएं।\n• विटाकेयर AI केवल एक स्वास्थ्य सहायक है, **डॉक्टर नहीं**।\n\nकृपया तुरंत डॉक्टर से संपर्क करें।",
-    emergencyDisclaimer: "विटाकेयर AI डॉक्टर नहीं है और आपातकालीन उपचार प्रदान नहीं करता है।",
+    emergencyBody: "आपके द्वारा बताए गए लक्षण गंभीर आपातकालीन स्थिति का संकेत हो सकते हैं।\n\n• **तत्काल कार्रवाई**: कृपया तुरंत आपातकालीन सेवाओं (112 / 108) को कॉल करें।\n• **आपातकालीन SOS**: अभिभावक को तुरंत सतर्क करने के लिए डैशबोर्ड पर SOS बटन दबाएं।\n• AI Health Copilot केवल एक स्वास्थ्य सहायक है, **डॉक्टर नहीं**।\n\nकृपया तुरंत डॉक्टर से संपर्क करें।",
+    emergencyDisclaimer: "AI Health Copilot डॉक्टर नहीं है और आपातकालीन उपचार प्रदान नहीं करता है।",
     medScheduleHeader: "### 💊 आज का दवा शेड्यूल\n\n",
     medScheduledFor: "निर्धारित समय",
     instructions: "निर्देश",
@@ -300,122 +184,15 @@ const AI_LOCALES = {
     reportsSummary: "• **सत्यापित रिपोर्टें**: {{count}} दस्तावेज़\n",
     vitalsSummary: "• **ट्रैक किए गए बायोमार्कर**: {{count}} माप\n",
     allergiesSummary: "• **एलर्जी**: {{allergies}}\n",
-    suggestedHeader: "\nआप पूछ सकते हैं:\n- *\"आज मेरी कौन सी दवाएं हैं?\"*\n- *\"मेरा ब्लड शुगर स्तर क्या है?\"*\n- *\"मेरी रिपोर्टों की तुलना करें\"*\n- *\"मेरे हीमोग्लोबिन के बारे में बताएं\"*\n",
-    modeSimplePrefix: "\n\n💡 **सरल शब्दों में:**\n",
-    modeStandardPrefix: "\n\n📋 **चिकित्सीय संदर्भ:**\n",
-    modeDetailedPrefix: "\n\n🔬 **विस्तृत जैविक संदर्भ:**\n",
-    modeDetailedSuffix: "\n*नोट*: परीक्षण पद्धति के आधार पर संदर्भ सीमाएं थोड़ी भिन्न हो सकती हैं।",
-    disclaimer: "विटाकेयर AI केवल शैक्षिक जानकारी प्रदान करता है। यह डॉक्टर के परामर्श का विकल्प नहीं है।"
-  },
-
-  bn: {
-    emergencyTitle: "⚠️ **জরুরি চিকিৎসা নিরাপত্তা সতর্কতা**",
-    emergencyBody: "আপনার উল্লেখিত লক্ষণগুলি একটি তীব্র জরুরি চিকিৎসার ইঙ্গিত দিতে পারে।\n\n• **তাৎক্ষণিক পদক্ষেপ**: অনুগ্রহ করে অবিলম্বে জরুরি পরিষেবাতে (108 / 112) কল করুন।\n• **জরুরি SOS**: ড্যাশবোর্ডে SOS বোতাম টিপে অভিভাবককে সতর্ক করুন।\n• ভিটাকെയர் AI কেবলমাত্র একটি সহায়ক, **চিকিৎসক নয়**।\n\nঅবিলম্বে ডাক্তারের পরামর্শ নিন।",
-    emergencyDisclaimer: "ভিটাকെയர் AI ডাক্তার নয় এবং জরুরি চিকিৎসা প্রদান করে না।",
-    medScheduleHeader: "### 💊 আজকের ওষুধের সময়সূচী\n\n",
-    medScheduledFor: "নির্ধারিত সময়",
-    instructions: "নির্দেশনা",
-    statusLabel: "অবস্থা",
-    statusTaken: "✅ গ্রহণ করা হয়েছে (যাচাইকৃত)",
-    statusMissed: "❌ মিস হয়েছে",
-    statusUpcoming: "⏳ আসন্ন",
-    nextDose: "পরবর্তী ওষুধ",
-    activeMedsCount: "আপনার প্রোফাইলে **{{count}}** টি সক্রিয় ওষুধ রয়েছে:\n",
-    noMedsToday: "আজকের জন্য কোনো ওষুধ নির্ধারিত নেই। প্রেসক্রিপশন আপলোড করতে পারেন।",
-    medKnowledge: "ডাক্তারের পরামর্শ অনুযায়ী নির্দিষ্ট সময়ে খাবারের সাথে নিয়মিত ওষুধ গ্রহণ করুন।",
-    glucoseHeader: "### 🩸 আপনার রক্তের শর্করার রেকর্ড (Blood Glucose)\n\n",
-    recordedOn: "রেকর্ডের তারিখ",
-    statusIndicator: "অবস্থা",
-    elevatedNote: "\n*নোট*: কিছু শর্করার পরিমাপ স্বাভাবিক সীমার চেয়ে বেশি।",
-    noGlucoseFound: "রক্তের শর্করার পরিমাপ এখনও পাওয়া যায়নি।",
-    glucoseKnowledge: "খালি পেটে রক্তের শর্কራ 70-99 mg/dL স্বাভাবিক। 100-125 mg/dL প্রি-ডায়াবেটিস এবং 126 mg/dL বা তার বেশি ডায়াবেটিস নির্দেশ করে।",
-    hbHeader: "### 🔬 আপনার হিমোগ্লোবিনের মাত্রা (Hemoglobin - Hb)\n\n",
-    stdRefRange: "রেফারেন্স সীমা",
-    recordedDate: "রেকর্ডের তারিখ",
-    verifiedByPatient: "রোগী কর্তৃক যাচাইকৃত",
-    trendDiff: "পরিবর্তন: পূর্ববর্তী পরিমাপ {{date}} তারিখে **{{prev}}** ছিল (পার্থক্য: {{diff}})।",
-    noHbFound: "হিমোগ্লোবিন পরিমাপ এখনও নেই। সিবিসি (CBC) রিপোর্ট আপলোড করুন।",
-    hbKnowledge: "হিমোগ্লোবিন লোহিত রক্তকণিকায় অক্সিজেন পরিবহনকারী প্রোটিন। পুরুষদের জন্য 13.5–17.5 g/dL এবং মহিলাদের জন্য 12.0–15.5 g/dL স্বাভাবিক।",
-    bpHeader: "### 💓 আপনার রক্তচাপের রেকর্ড (Blood Pressure - BP)\n\n",
-    currentReading: "বর্তমান পরিমাপ",
-    stdTarget: "স্বাভাবিক লক্ষ্য: < 120/80 mmHg",
-    noBpFound: "রক্তচাপের কোনো পরিমাপ নেই।",
-    bpKnowledge: "রক্তচাপ সিস্টোলিক এবং ডায়াস্টোলিক নিয়ে গঠিত। স্বাভাবিক রক্তচাপ 120/80 mmHg এর নিচে থাকা উচিত।",
-    compareHeader: "### 📊 ল্যাব রিপোর্ট তুলনা\n\nআপনার সাম্প্রতিক দুটি রিপোর্টের তুলনা:\n",
-    noOverlap: "উভয় রিপোর্টে ভিন্ন পরীক্ষা রয়েছে। বিস্তারিত **রিপোর্ট তুলনা** বিভাগে দেখুন।\n",
-    singleReport: "বর্তমানে কেবল **1টি রিপোর্ট** আছে ({{type}} - {{date}})।\nদ্বিতীয় রিপোর্ট আপলোড করে তুলনা করুন!",
-    noReports: "কোনো স্বাস্থ্য রিপোর্ট আপলোড করা হয়নি।",
-    summaryHeader: "### 🩺 {{name}} এর স্বাস্থ্য সারাংশ\n\nআপনার বর্তমান স্বাস্থ্য প্রোফাইল:\n",
-    activeMedsSummary: "• **সক্রিয় ওষুধ**: {{count}} টি\n",
-    todayDosesSummary: "• **আজকের ডোজ**: {{count}} টি\n",
-    reportsSummary: "• **যাচাইকৃত রিপোর্ট**: {{count}} টি\n",
-    vitalsSummary: "• **ট্র্যাক করা বায়োমার্কার**: {{count}} টি\n",
-    allergiesSummary: "• **অ্যালার্জি**: {{allergies}}\n",
-    suggestedHeader: "\nআপনি জিজ্ঞাসা করতে পারেন:\n- *\"আজ আমার কী কী ওষুধ আছে?\"*\n- *\"আমার রক্তের শর্করা কত?\"*\n- *\"আমার রিপোর্টগুলো তুলনা করুন\"*\n- *\"আমার হিমোগ্লোবিন ব্যাখ্যা করুন\"*\n",
-    modeSimplePrefix: "\n\n💡 **সহজ কথায়:**\n",
-    modeStandardPrefix: "\n\n📋 **চিকিৎসা প্রসঙ্গ:**\n",
-    modeDetailedPrefix: "\n\n🔬 **বিস্তারিত জৈবিক ব্যাখ্যা:**\n",
-    modeDetailedSuffix: "\n*নোট*: ল্যাব রেফারেন্স সীমা পরীক্ষা পদ্ধতির উপর ভিত্তি করে পরিবর্তিত হতে পারে।",
-    disclaimer: "ভিটাকെയர் AI কেবল তথ্য সরবরাহ করে। এটি ডাক্তারের বিকল্প নয়।"
-  },
-
-  mr: {
-    emergencyTitle: "⚠️ **तातडीची वैद्यकीय सुरक्षा चेतावणी**",
-    emergencyBody: "तुम्ही नमूद केलेली लक्षणे गंभीर वैद्यकीय आणीबाणी दर्शवू शकतात.\n\n• **तातडीची कृती**: कृपया तात्काळ रुग्णवाहिका किंवा आणीबाणी सेवांना (108 / 112) कॉल करा.\n• **आणीबाणी SOS**: पालकांना त्वरित सूचना देण्यासाठी डॅशबोर्डवरील SOS बटण दाबा.\n• व्हिटाकेअर AI केवळ एक सहाय्यक आहे, **डॉक्टर नाही**.\n\nकृपया त्वरित डॉक्टरांचा सल्ला घ्या.",
-    emergencyDisclaimer: "व्हिटाकेअर AI डॉक्टर नाही आणि आपत्कालीन उपचार देत नाही.",
-    medScheduleHeader: "### 💊 आजचे औषध वेळापत्रक\n\n",
-    medScheduledFor: "नियोजित वेळ",
-    instructions: "सूचना",
-    statusLabel: "स्थिती",
-    statusTaken: "✅ घेतले (सत्यापित)",
-    statusMissed: "❌ चुकले",
-    statusUpcoming: "⏳ आगामी",
-    nextDose: "पुढील औषध",
-    activeMedsCount: "तुमच्या प्रोफाइलमध्ये **{{count}}** सक्रिय औषधे आहेत:\n",
-    noMedsToday: "आजसाठी कोणतीही औषधे नियोजित नाहीत. नवीन प्रिस्क्रिप्शन अपलोड करू शकता.",
-    medKnowledge: "डॉक्टरांच्या सल्ल्यानुसार जेवणासोबत नियमितपणे औषधे वेळेवर घ्या.",
-    glucoseHeader: "### 🩸 रक्तातील साखरेचे मोजमाप (Blood Glucose)\n\n",
-    recordedOn: "नोंदवलेली तारीख",
-    statusIndicator: "स्थिती",
-    elevatedNote: "\n*टीप*: रक्तातील साखरेचे काही मोजमाप सामान्य पातळीपेक्षा जास्त आहे.",
-    noGlucoseFound: "रक्तातील साखरेचे मोजमाप अद्याप उपलब्ध नाही.",
-    glucoseKnowledge: "उपाशीपोटी रक्तातील साखर 70-99 mg/dL सामान्य असते. 100-125 mg/dL प्री-डायबिटीज आणि 126 mg/dL किंवा त्याहून अधिक मधुमेह दर्शवते.",
-    hbHeader: "### 🔬 तुमची हिमोग्लोबिन पातळी (Hemoglobin - Hb)\n\n",
-    stdRefRange: "संदर्भ श्रेणी",
-    recordedDate: "नोंद तारीख",
-    verifiedByPatient: "रुग्णाने सत्यापित केले",
-    trendDiff: "बदल: मागील मोजमाप {{date}} रोजी **{{prev}}** होते (फरक: {{diff}}).",
-    noHbFound: "हिमोग्लोबिन मोजमाप नोंदवलेले नाही. कृपया सीबीसी (CBC) अहवाल अपलोड करा.",
-    hbKnowledge: "हिमोग्लोबिन हे लाल रक्तपेशींमध्ये ऑक्सिजन वाहून नेणारे प्रथिन आहे. पुरुषांसाठी 13.5–17.5 g/dL आणि स्त्रियांसाठी 12.0–15.5 g/dL सामान्य श्रेणी आहे.",
-    bpHeader: "### 💓 तुमचा रक्तदाब रेकॉर्ड (Blood Pressure - BP)\n\n",
-    currentReading: "सध्याचे मोजमाप",
-    stdTarget: "सामान्य लक्ष्य: < 120/80 mmHg",
-    noBpFound: "रक्तदाबाचे मोजमाप नोंदवलेले नाही.",
-    bpKnowledge: "रक्तदाब सिस्टोलिक आणि डायस्टोलिक असतो. सामान्य रक्तदाब 120/80 mmHg पेक्षा कमी असावा.",
-    compareHeader: "### 📊 लॅब अहवाल तुलना\n\nतुमच्या मागील दोन अहवालांची तुलना:\n",
-    noOverlap: "दोन्ही अहवालांमध्ये भिन्न चाचण्या आहेत. पूर्ण माहितीसाठी **अहवाल तुलना** पहा.\n",
-    singleReport: "सध्या फक्त **1 अहवाल** उपलब्ध आहे ({{type}} - {{date}}).\nदुसरा अहवाल अपलोड करून तुलना करा!",
-    noReports: "आरोग्य अहवाल अपलोड केलेले नाहीत.",
-    summaryHeader: "### 🩺 {{name}} यांचा आरोग्य सारांश\n\nतुमची सध्याची आरोग्य माहिती:\n",
-    activeMedsSummary: "• **सक्रिय औषधे**: {{count}} नोंदणीकृत\n",
-    todayDosesSummary: "• **आजचे नियोजित डोस**: {{count}} वेळा\n",
-    reportsSummary: "• **सत्यापित अहवाल**: {{count}} दस्तऐवज\n",
-    vitalsSummary: "• **ट्रॅक केलेले बायोमार्कर्स**: {{count}} मोजमाप\n",
-    allergiesSummary: "• **ॲलर्जी**: {{allergies}}\n",
-    suggestedHeader: "\nतुम्ही विचारू शकता:\n- *\"आज माझी कोणती औषधे आहेत?\"*\n- *\"माझी रक्तातील साखरेची पातळी काय आहे?\"*\n- *\"माझ्या अलीकडील अहवालांची तुलना करा\"*\n- *\"माझ्या हिमोग्लोबिनबद्दल सांगा\"*\n",
-    modeSimplePrefix: "\n\n💡 **सोप्या शब्दांत:**\n",
-    modeStandardPrefix: "\n\n📋 **वैद्यकीय संदर्भ:**\n",
-    modeDetailedPrefix: "\n\n🔬 **तपशीलवार जैविक संदर्भ:**\n",
-    modeDetailedSuffix: "\n*टीप*: चाचणी पद्धतीनुसार संदर्भ श्रेणी थोडी बदलू शकते.",
-    disclaimer: "व्हिटाकेअर AI केवळ शैक्षणिक माहिती पुरवतो. हा डॉक्टरांच्या सल्ल्याचा पर्याय नाही."
+    disclaimer: "मैं एक AI स्वास्थ्य सहायक हूं, डॉक्टर नहीं। चिकित्सा निर्णयों के लिए कृपया अपने डॉक्टर से परामर्श लें।"
   }
 };
 
 class AiCopilotService {
   /**
-   * Invokes Google Gemini Generative AI API with clinical grounding and multi-turn conversation history
+   * Invokes Google Gemini Generative AI API with clinical grounding, RAG context, and safety rules
    */
-  async callGemini(systemPrompt, conversationHistory = [], userMessage = '', maxTokens = 650) {
+  async callGemini(systemPrompt, conversationHistory = [], userMessage = '', maxTokens = 450) {
     const apiKey = process.env.GEMINI_API_KEY;
     const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
     if (!apiKey) {
@@ -430,7 +207,6 @@ class AiCopilotService {
       for (const item of conversationHistory) {
         if (!item || !item.content || !item.content.trim()) continue;
         const role = (item.role === 'assistant' || item.role === 'model') ? 'model' : 'user';
-        // Strip attached disclaimers so context remains clean and focused
         const text = item.content.split('\n\n---\n*')[0].trim();
         if (!text) continue;
 
@@ -467,7 +243,7 @@ class AiCopilotService {
           },
           contents,
           generationConfig: {
-            temperature: 0.2,
+            temperature: 0.15,
             maxOutputTokens: maxTokens
           }
         }),
@@ -493,18 +269,97 @@ class AiCopilotService {
   }
 
   /**
-   * Main entrypoint to generate localized AI Copilot response.
+   * Deterministic check for whether a query is healthcare-related.
+   */
+  isMedicalQuery(query, documentContext = null) {
+    if (documentContext) return true;
+    if (!query || typeof query !== 'string') return false;
+    const q = query.toLowerCase().trim();
+
+    // Check greeting / intro
+    if (/^(hi|hello|hey|namaste|vanakkam|good\s*(morning|afternoon|evening)|who\s+are\s+you|what\s+can\s+you\s+do|help\s*me)/i.test(q)) {
+      return true;
+    }
+
+    const medicalKeywords = [
+      'health', 'medical', 'medicine', 'medicines', 'medication', 'dose', 'dosage', 'prescription', 'pills', 'tablets', 'capsule',
+      'schedule', 'intake', 'patient', 'doctor', 'hospital', 'clinic', 'nurse', 'pharmacist', 'pharmacy',
+      'report', 'lab', 'test', 'blood', 'urine', 'cbc', 'hemoglobin', 'hb', 'hba1c', 'glucose', 'sugar', 'fbs', 'ppbs',
+      'pressure', 'bp', 'systolic', 'diastolic', 'heart', 'pulse', 'spo2', 'oxygen', 'temperature', 'fever', 'chills',
+      'cough', 'cold', 'flu', 'covid', 'infection', 'virus', 'bacteria', 'bacterium', 'antibiotic', 'pain', 'ache', 'headache',
+      'stomach', 'nausea', 'vomit', 'diarrhea', 'constipation', 'dizzy', 'fatigue', 'tired', 'sleep', 'insomnia', 'water',
+      'hydration', 'nutrition', 'diet', 'food', 'exercise', 'weight', 'bmi', 'cholesterol', 'lipid', 'ldl', 'hdl', 'triglyceride',
+      'creatinine', 'kidney', 'liver', 'lft', 'alt', 'ast', 'bilirubin', 'thyroid', 'tsh', 't3', 't4', 'allergy', 'allergies',
+      'asthma', 'breathing', 'breath', 'chest', 'stroke', 'emergency', 'sos', '112', '108', '911', 'wound', 'bleeding', 'rash',
+      'tanglish', 'marunthu', 'maathirai', 'udambu', 'raththam', 'vali', 'maruthuvar',
+      'document', 'upload', 'uploaded', 'attachment', 'scan', 'findings', 'biomarker', 'reading', 'vitals', 'summary', 'explain this', 'clarify'
+    ];
+
+    return medicalKeywords.some(kw => q.includes(kw));
+  }
+
+  /**
+   * Main entrypoint to generate localized AI Health Copilot response.
    * @param {string} userId - Authenticated user ID
    * @param {string} userMessage - Natural language patient query
-   * @param {string} mode - 'simple' | 'standard' | 'detailed'
-   * @param {string} requestedLang - 'en' | 'ta' | 'te' | 'ml' | 'kn' | 'hi' | 'bn' | 'mr'
-   * @param {Array} history - Optional recent conversation history [{ role, content }]
+   * @param {string} mode - 'short' (default, 2-5 sentences) | 'explain' (1-2 paragraphs) | 'detailed' (deep clinical context)
+   * @param {string} requestedLang - 'en' | 'ta' | 'te' | 'hi' | 'ml' | 'kn' | 'bn' | 'mr'
+   * @param {Array} history - Optional recent conversation history
+   * @param {Object} documentContext - Optional attached document extraction
    */
-  async generateResponse(userId, userMessage, mode = 'simple', requestedLang = null, history = null) {
+  async generateResponse(userId, userMessage, mode = 'short', requestedLang = null, history = null, documentContext = null) {
     const user = db.findById('users', userId);
     const lang = requestedLang || user?.preferredLanguage || 'en';
     const loc = AI_LOCALES[lang] || AI_LOCALES['en'];
 
+    const normalizedMode = (mode === 'simple' || mode === 'short') ? 'short' 
+      : (mode === 'standard' || mode === 'explain') ? 'explain' 
+      : 'detailed';
+
+    const query = (userMessage || '').toLowerCase();
+
+    // 1. Strict Healthcare Scope Verification
+    const isMedical = this.isMedicalQuery(userMessage, documentContext);
+    if (!isMedical) {
+      const redirectReply = "I'm your AI Health Copilot. I can help with health information, medical reports, prescriptions, and general healthcare guidance.";
+      return {
+        reply: redirectReply,
+        mode: normalizedMode,
+        language: lang,
+        isOutOfScope: true,
+        disclaimer: loc.disclaimer
+      };
+    }
+
+    // 2. Critical Emergency Symptom Triage Check
+    const emergencyKeywords = [
+      'chest pain', 'heart attack', 'cannot breathe', 'severe shortness of breath',
+      'stroke', 'sudden weakness', 'face drooping', 'slurred speech',
+      'severe bleeding', 'unconscious', 'overdose', 'anaphylaxis', 'choking',
+      'நெஞ்சு வலி', 'மூச்சுத் திணறல்', 'గుండె నొప్పి', 'శ్వాస ఆడకపోవడం',
+      'നെഞ്ചുവേദന', 'ശ്വാസതടസ്സം', 'ಎದೆ ನೋವು', 'ಉಸಿರಾಟದ ತೊಂದರೆ',
+      'सीने में दर्द', 'सांस लेने में तकलीफ', 'बुके ব্যথা', 'শ্বাসকষ্ট', 'छातीत दुखणे'
+    ];
+    const hasEmergencyKeywords = emergencyKeywords.some(kw => query.includes(kw));
+
+    if (hasEmergencyKeywords) {
+      return {
+        reply: `${loc.emergencyTitle}\n\n${loc.emergencyBody}`,
+        mode: normalizedMode,
+        language: lang,
+        contextUsed: { emergencyTriggered: true },
+        hasEmergencyWarning: true,
+        disclaimer: loc.emergencyDisclaimer
+      };
+    }
+
+    // 3. RAG: Retrieve Relevant Authoritative Medical Knowledge
+    const ragSources = medicalKnowledgeService.retrieveRelevantKnowledge(userMessage, 2);
+    const ragContextStr = ragSources.length > 0 
+      ? ragSources.map(s => `[SOURCE: ${s.sourceName} - ${s.title}]\n${s.snippet}`).join('\n\n')
+      : 'Standard clinical reference guidelines.';
+
+    // 4. Resolve Patient's Private Records (Strictly User Isolated)
     const profile = db.findOne('user_profiles', p => p.userId === userId);
     const reports = db.find('health_reports', r => r.userId === userId);
     const extractedValues = db.find('extracted_health_values', v => v.userId === userId);
@@ -513,41 +368,17 @@ class AiCopilotService {
     const today = new Date().toISOString().split('T')[0];
     const todaySchedules = db.find('medicine_schedules', s => s.userId === userId && s.scheduledDate === today);
 
-    const query = (userMessage || '').toLowerCase();
-
-    // 1. Critical Emergency Symptom Triage Check
-    const emergencyKeywords = [
-      'chest pain', 'heart attack', 'cannot breathe', 'severe shortness of breath',
-      'stroke', 'sudden weakness', 'face drooping', 'slurred speech',
-      'severe bleeding', 'unconscious', 'overdose', 'anaphylaxis', 'choking',
-      'நெஞ்சு வலி', 'மூச்சுத் திணறல்', 'గుండె నొప్పి', 'శ్వాస ఆడకపోవడం',
-      'നെഞ്ചുവേദന', 'ശ്വാസതടസ്സം', 'ಎದೆ ನೋವು', 'ಉಸಿರಾಟದ ತೊಂದರೆ',
-      'सीने में दर्द', 'सांस लेने में तकलीफ', 'বুকে ব্যথা', 'শ্বাসকষ্ট', 'छातीत दुखणे'
-    ];
-    const hasEmergencyKeywords = emergencyKeywords.some(kw => query.includes(kw));
-
-    if (hasEmergencyKeywords) {
-      return {
-        reply: `${loc.emergencyTitle}\n\n${loc.emergencyBody}`,
-        mode: mode,
-        language: lang,
-        contextUsed: { emergencyTriggered: true },
-        hasEmergencyWarning: true,
-        disclaimer: loc.emergencyDisclaimer
-      };
-    }
-
-    // 2. Resolve Multi-Turn Conversation History (isolated per user)
+    // 5. Multi-Turn Conversation History (isolated per user)
     let conversationHistory = [];
     if (Array.isArray(history) && history.length > 0) {
-      conversationHistory = history.slice(-8);
+      conversationHistory = history.slice(-6);
     } else {
       const storedConvs = db.find('ai_conversations', c => c.userId === userId) || [];
       storedConvs.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-      conversationHistory = storedConvs.slice(-8).map(c => ({ role: c.role, content: c.content }));
+      conversationHistory = storedConvs.slice(-6).map(c => ({ role: c.role, content: c.content }));
     }
 
-    // 3. Attempt Google Gemini AI Generation with Full Clinical Prompt Context
+    // 6. Build Gemini Multimodal & Clinical System Prompt
     const languageNames = {
       en: 'English',
       ta: 'Tamil (தமிழ்)',
@@ -560,148 +391,94 @@ class AiCopilotService {
     };
     const targetLanguage = languageNames[lang] || 'English';
 
-    const systemPrompt = `You are VitaCare AI – an empathetic, intelligent, and clinically grounded personal health assistant copilot for the VitaCare platform.
+    const systemPrompt = `You are AI Health Copilot – an intelligent, empathetic, and clinically grounded medical AI assistant.
 
-CORE OPERATING INSTRUCTIONS:
-1. Direct Relevance (CRITICAL):
-   - Answer the user's EXACT question directly and clearly first.
-   - For general medical, biological, or physiological questions (e.g. "What is blood pressure?", "What is the difference between a virus and bacteria?"), explain them accurately using sound clinical knowledge. Do NOT pivot to or dump the user's personal medication schedule or missed doses unless the user explicitly asks about their medications, schedule, or health records.
-   - For questions unrelated to healthcare (e.g. "What is the capital of France?"), answer briefly and politely, noting that you are VitaCare's health assistant.
+CRITICAL SCOPE DIRECTIVE:
+You answer ONLY health, medical, prescription, laboratory report, and wellness questions.
+If the user asks an unrelated question (e.g. sports, coding, capital of France, geography, finance, entertainment):
+Reply PRECISELY with:
+"I'm your AI Health Copilot. I can help with health information, medical reports, prescriptions, and general healthcare guidance."
 
-2. Patient Verified Health Records Grounding:
-   - When the user asks about their own medical records, reports, medications, or vitals:
-     * Ground your answer strictly in the PATIENT'S VERIFIED HEALTH CONTEXT provided below.
-     * When asked "What does my latest report say?" or about test results:
-       - If reports exist below, summarize the actual report type, lab, date, and recorded values accurately.
-       - If NO reports exist in the verified context, explicitly state: "No health reports have been uploaded to your profile yet." Explain how to use "+ Add Health Report" on the dashboard. NEVER fabricate or hallucinate reports or biomarkers.
-     * Never invent personal health information or pretend to have accessed records that are not in the context.
+RESPONSE LENGTH REQUIREMENTS:
+- Mode "SHORT" (Default):
+  * Keep your response usually between 2 to 5 short, friendly sentences.
+  * Use simple everyday English (or the selected language).
+  * Avoid unnecessary technical jargon.
+  * Do not repeat the user's question.
+  * Do not output long multi-paragraph essays.
+- Mode "EXPLAIN" ("Explain More"):
+  * Provide 1 to 2 focused paragraphs with bullet points for clarity.
+- Mode "DETAILED" ("Detailed Explanation"):
+  * Provide an in-depth clinical explanation with physiological context, reference ranges, and precautions.
 
-3. Multi-turn Follow-ups:
-   - Understand follow-up questions using the ongoing conversation history. For example, if the previous message explained blood pressure and the user asks "Explain that in simpler words", provide a simplified, intuitive analogy (e.g. water pressure in a hose) for blood pressure.
+PATIENT-FRIENDLY CLINICAL SAFETY GUIDELINES:
+1. Educational Support Only: Explain health terms, test results, and prescriptions clearly. Do not provide a definitive diagnosis from a single result.
+2. Uncertain Text Rule: Never guess an unclear medicine name, dose, or strength. If text is ambiguous or unreadable, advise: "Unable to read clearly — please confirm with your pharmacist or prescriber."
+3. Medication Guidance: Never independently create, change, or recommend altering a prescription. Emphasize taking medicines as directed.
+4. Emergency Guidance: If life-threatening symptoms appear, advise contacting emergency services immediately (112 in India, 911, or local emergency services).
+5. Grounding: Ground all personal health answers strictly in the Patient Verified Health Records and RAG references below. Never hallucinate reports or records that do not exist.
 
-4. Language & Writing Style:
-   - Respond in the language or writing style requested by the user:
-     * If the user asks in English, reply in English.
-     * If the user asks in Tanglish (Tamil written in English/Latin script), reply naturally in Tanglish.
-     * If the user asks in Tamil (தமிழ்), reply in Tamil.
-     * If the user asks in Hindi (हिन्दी), reply in Hindi.
-     * Support other regional languages (Telugu, Kannada, Malayalam, Bengali, Marathi) as requested. Target language configured: ${targetLanguage}.
+AUTHORITATIVE MEDICAL KNOWLEDGE (RAG):
+${ragContextStr}
 
-5. Response Mode:
-   - "simple": Simple everyday words, intuitive analogies, under 600 characters. Avoid complex medical jargon.
-   - "standard": Balanced, informative clinical overview with clear guidance.
-   - "detailed": Deep biological and physiological context with reference ranges and pathophysiological significance.
-
-6. Safety, Medical Boundaries & Real-time Search:
-   - Educational Purpose: You provide health information and education. You do NOT provide a definitive diagnosis or prescribe individual medications. Always advise consulting a licensed physician.
-   - Emergency Protocol: If severe, life-threatening symptoms are mentioned, immediately advise calling emergency services (911/112/108) or using the VitaCare Emergency SOS button.
-   - Live Web Search: Live internet search / web browsing is NOT enabled in this deployment. Never invent search results or fake URLs. If the user asks for real-time external events, clearly acknowledge this limitation and answer from verified clinical knowledge.
-
-PATIENT'S VERIFIED HEALTH CONTEXT:
+PATIENT'S VERIFIED HEALTH CONTEXT (PRIVATE TO THIS PATIENT):
 - Patient Name: ${user?.name || 'Patient'}
 - Blood Group: ${user?.bloodGroup || 'Not specified'}
 - Allergies: ${(profile?.allergies && profile.allergies.length > 0) ? (Array.isArray(profile.allergies) ? profile.allergies.join(', ') : profile.allergies) : 'None recorded'}
-- Chronic Conditions: ${(profile?.chronicConditions && profile.chronicConditions.length > 0) ? (Array.isArray(profile.chronicConditions) ? profile.chronicConditions.join(', ') : profile.chronicConditions) : 'None recorded'}
 - Active Medications (${medicines.length}): ${medicines.map(m => `${m.name} (${m.dosage}, ${m.frequency})`).join('; ') || 'No active medications recorded'}
 - Today's Dose Schedule (${todaySchedules.length}): ${todaySchedules.map(s => `${s.scheduledTime} - ${s.medicineName} (${s.dosage}) [Status: ${s.status}]`).join('; ') || 'No doses scheduled for today'}
-- Recent Tracked Vitals (${vitals.length}): ${vitals.slice(-6).map(v => `${v.metricName}: ${v.value} ${v.unit} (Ref: ${v.referenceRange || 'Standard'}, Date: ${v.date})`).join('; ') || 'No vitals recorded'}
+- Recent Tracked Vitals (${vitals.length}): ${vitals.slice(-4).map(v => `${v.metricName}: ${v.value} ${v.unit} (Ref: ${v.referenceRange || 'Standard'})`).join('; ') || 'No vitals recorded'}
 - Verified Diagnostic Reports (${reports.length}): ${reports.slice(-3).map(r => `${r.reportType} from ${r.labName} (${r.reportDate})`).join('; ') || 'No reports uploaded'}
-- Extracted Lab Values (${extractedValues.length}): ${extractedValues.slice(-8).map(v => `${v.metricName}: ${v.value} ${v.unit || ''} (Ref: ${v.referenceRange || 'Standard'})`).join('; ') || 'None recorded'}
-- Current Response Mode: ${mode.toUpperCase()}
+- Extracted Lab Values (${extractedValues.length}): ${extractedValues.slice(-6).map(v => `${v.metricName}: ${v.value} ${v.unit || ''} (Ref: ${v.referenceRange || 'Standard'})`).join('; ') || 'None recorded'}
+${documentContext ? `- Attached Document Findings: ${JSON.stringify(documentContext)}` : ''}
+
+TARGET LANGUAGE: ${targetLanguage}.
+RESPONSE MODE: ${normalizedMode.toUpperCase()}.
 `;
 
-    const maxTokens = mode === 'detailed' ? 900 : mode === 'standard' ? 700 : 600;
+    const maxTokens = normalizedMode === 'detailed' ? 650 : normalizedMode === 'explain' ? 400 : 250;
     const geminiReply = await this.callGemini(systemPrompt, conversationHistory, userMessage, maxTokens);
+
     if (geminiReply) {
+      // Check if Gemini detected out-of-scope and returned redirect
+      if (geminiReply.includes("I'm your AI Health Copilot. I can help with health information")) {
+        return {
+          reply: "I'm your AI Health Copilot. I can help with health information, medical reports, prescriptions, and general healthcare guidance.",
+          mode: normalizedMode,
+          language: lang,
+          isOutOfScope: true,
+          disclaimer: loc.disclaimer
+        };
+      }
+
       const finalReply = `${geminiReply}\n\n---\n*${loc.disclaimer}*`;
-
-      // Save to conversation history
-      db.insert('ai_conversations', {
-        userId,
-        role: 'user',
-        content: userMessage,
-        mode,
-        language: lang,
-        createdAt: new Date().toISOString()
-      });
-
-      db.insert('ai_conversations', {
-        userId,
-        role: 'assistant',
-        content: finalReply,
-        mode,
-        language: lang,
-        contextUsed: {
-          vitalsCount: vitals.length,
-          medicinesCount: medicines.length,
-          reportsCount: reports.length,
-          extractedValuesCount: extractedValues.length,
-          model: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
-        },
-        createdAt: new Date().toISOString()
-      });
-
-      const citations = [];
-      if (query.includes('medicine') || query.includes('dose') || query.includes('prescription')) {
-        medicines.forEach(m => citations.push(`Medication: ${m.name} (${m.dosage})`));
-      }
-      if (query.includes('vital') || query.includes('pressure') || query.includes('sugar') || query.includes('glucose') || query.includes('hemoglobin')) {
-        vitals.slice(-3).forEach(v => citations.push(`${v.metricName}: ${v.value} ${v.unit}`));
-      }
-      if (query.includes('report') || query.includes('lab') || query.includes('test')) {
-        reports.slice(-2).forEach(r => citations.push(`${r.reportType} (${r.reportDate})`));
-        extractedValues.slice(-5).forEach(v => citations.push(`${v.metricName}: ${v.value} ${v.unit || ''}`));
-      }
+      const ragCitations = ragSources.map(s => `${s.sourceName}: ${s.title}`);
 
       return {
         reply: finalReply,
-        mode,
+        mode: normalizedMode,
         language: lang,
-        userDataCitations: citations,
+        userDataCitations: ragCitations,
+        ragSources: ragSources.map(s => ({ title: s.title, sourceName: s.sourceName, url: s.url })),
         contextUsed: {
           vitalsCount: vitals.length,
           reportsCount: reports.length,
           medicinesCount: medicines.length,
+          ragCount: ragSources.length,
           aiModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
         },
         disclaimer: loc.disclaimer
       };
     }
 
-    // 4. Fallback to Built-in Multi-language Deterministic Clinical Engine
-    const fallbackResult = this.generateLocalFallback(userId, userMessage, lang, mode);
-
-    // Save fallback to conversation history
-    db.insert('ai_conversations', {
-      userId,
-      role: 'user',
-      content: userMessage,
-      mode,
-      language: lang,
-      createdAt: new Date().toISOString()
-    });
-
-    db.insert('ai_conversations', {
-      userId,
-      role: 'assistant',
-      content: fallbackResult.reply,
-      mode,
-      language: lang,
-      contextUsed: {
-        fallback: true,
-        vitalsCount: vitals.length,
-        medicinesCount: medicines.length
-      },
-      createdAt: new Date().toISOString()
-    });
-
-    return fallbackResult;
+    // 7. Deterministic Clinical Fallback Engine
+    return this.generateLocalFallback(userId, userMessage, lang, normalizedMode, ragSources, documentContext);
   }
 
   /**
    * Deterministic local clinical fallback engine when AI provider is offline or unreachable
    */
-  generateLocalFallback(userId, userMessage, lang = 'en', mode = 'simple') {
+  generateLocalFallback(userId, userMessage, lang = 'en', mode = 'short', ragSources = [], documentContext = null) {
     const loc = AI_LOCALES[lang] || AI_LOCALES['en'];
     const query = (userMessage || '').toLowerCase();
     const user = db.findById('users', userId);
@@ -712,102 +489,82 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
     const today = new Date().toISOString().split('T')[0];
     const todaySchedules = db.find('medicine_schedules', s => s.userId === userId && s.scheduledDate === today);
 
+    // Non-healthcare query check
+    if (!this.isMedicalQuery(userMessage, documentContext)) {
+      return {
+        reply: "I'm your AI Health Copilot. I can help with health information, medical reports, prescriptions, and general healthcare guidance.",
+        mode,
+        language: lang,
+        isOutOfScope: true,
+        disclaimer: loc.disclaimer
+      };
+    }
+
     let reply = '';
     const userDataCitations = [];
 
-    // A. Medicine / Schedule Query
-    if (
-      query.includes('medicine') || query.includes('schedule') || query.includes('pills') || query.includes('tablets') ||
-      query.includes('மருந்து') || query.includes('மாத்திரை') || query.includes('మందు') || query.includes('ಮಾತ್ರೆ') ||
-      query.includes('മരുന്ന്') || query.includes('दवा') || query.includes('औषध') || query.includes('ওষুধ')
-    ) {
-      if (todaySchedules.length > 0) {
-        reply += loc.medScheduleHeader;
-        todaySchedules.forEach(s => {
-          const statusText = s.status === 'taken' || s.status === 'Verified' ? loc.statusTaken : s.status === 'missed' ? loc.statusMissed : loc.statusUpcoming;
-          reply += `• **${s.scheduledTime}** — **${s.medicineName}** (${s.dosage})\n  *${loc.instructions}*: ${s.instructions || 'As prescribed'} | *${loc.statusLabel}*: ${statusText}\n`;
-          userDataCitations.push(`${s.medicineName} ${loc.medScheduledFor} ${s.scheduledTime}`);
-        });
-      } else if (medicines.length > 0) {
-        reply += loc.activeMedsCount.replace('{{count}}', medicines.length);
-        medicines.forEach(m => {
-          reply += `• **${m.name}** ${m.dosage} — ${m.frequency} (${m.instructions || 'As directed'})\n`;
-        });
-      } else {
-        reply += loc.noMedsToday;
-      }
-    }
-
-    // B. Virus vs Bacteria
-    else if (
-      query.includes('virus') || query.includes('bacteria') || query.includes('bacterium') ||
-      query.includes('வைரஸ்') || query.includes('பாக்டீரியா') || query.includes('बैक्टीरिया') || query.includes('वायरस')
-    ) {
-      reply += "Bacteria and viruses are two distinct types of microscopic entities:\n\n• **Bacteria**: Single-celled living microorganisms that can reproduce independently. While many are beneficial, harmful bacterial infections can be cured with targeted antibiotics.\n• **Viruses**: Non-cellular microscopic genetic agents encapsulated in a protein shell. They can only replicate by hijacking host living cells. Antibiotics do NOT work on viral infections; management focuses on vaccines, rest, hydration, or specific antivirals.\n\nAlways consult a qualified doctor for clinical testing and diagnosis.";
-    }
-
-    // C. Blood Pressure (including Tanglish and regional languages)
-    else if (
-      query.includes('blood pressure') || query.includes('bp') || query.includes('hypertension') ||
-      query.includes('இரத்த அழுத்தம்') || query.includes('ரத்த அழுத்தம்') || query.includes('రక్తపోటు') ||
-      query.includes('രക്തസമ്മർദ്ദം') || query.includes('ರಕ್ತದೊತ್ತಡ') || query.includes('रक्तचाप') || query.includes('রক্তচাপ') || query.includes('रक्तदाब')
-    ) {
-      if (query.includes('tanglish')) {
-        reply += "Blood pressure na namma udambula heart blood-ah pump pannumpothu, blood vessels oda walls-la padura pressure thaan. Idhula Systolic (heart beat aagumpothu) and Diastolic (heart rest edukkumpothu) nu rendu irukku. Normal resting blood pressure 120/80 mmHg-kulla irukkuradhu romba nalladhu. Nalla diet, regular walking, stress kuraikkuradhu BP-ah healthy-ah vekka help pannum.";
-      } else {
-        const bpVitals = vitals.filter(v => v.metricKey === 'blood_pressure');
-        if (bpVitals.length > 0) {
-          const latest = bpVitals[bpVitals.length - 1];
-          reply += `### 💓 Your Blood Pressure Record\n• **Current Reading**: **${latest.value} ${latest.unit}** (Ref: < 120/80 mmHg)\n• **Recorded Date**: ${latest.date}\n\n`;
-          userDataCitations.push(`Blood Pressure: ${latest.value} ${latest.unit} on ${latest.date}`);
-        }
-        reply += "Blood pressure measures the pressure exerted by circulating blood against your artery walls. It is given as two numbers: Systolic (when the heart pumps) over Diastolic (when the heart rests). An optimal resting blood pressure is typically below 120/80 mmHg.";
-      }
-    }
-
-    // D. Report Queries
-    else if (
-      query.includes('report') || query.includes('lab') || query.includes('test') || query.includes('biopsy') ||
-      query.includes('அறிக்கை') || query.includes('నివేదిక') || query.includes('रिपोर्ट')
-    ) {
-      if (query.includes('biopsy') || query.includes('scan') || query.includes('mri')) {
-        reply += "No biopsy or specialized scan results are recorded in your verified health profile. Please upload the relevant laboratory report using the + Add Health Report button.";
-      } else if (reports.length > 0) {
-        const latestReport = reports[reports.length - 1];
-        reply += `### 📄 ${latestReport.reportType || 'Diagnostic Report'} (${latestReport.reportDate})\n`;
-        reply += `• **Lab**: ${latestReport.labName || 'Diagnostic Laboratory'}\n\n`;
-        const repVals = extractedValues.filter(v => v.reportId === latestReport.id || v.userId === userId);
-        if (repVals.length > 0) {
-          reply += `• **Lab Biomarkers**:\n`;
-          repVals.forEach(v => {
-            reply += `  - **${v.metricName}**: **${v.value} ${v.unit || ''}** (Ref: ${v.referenceRange || 'Standard'})\n`;
-            userDataCitations.push(`${v.metricName}: ${v.value} ${v.unit || ''}`);
-          });
+    // Document Context Query
+    if (documentContext) {
+      if (documentContext.documentType === 'prescription') {
+        const rxMeds = documentContext.extractedData?.medicines || [];
+        if (rxMeds.length > 0) {
+          const names = rxMeds.map(m => `${m.medicineName} (${m.dosage || m.strength})`).join(', ');
+          reply = `In your uploaded prescription, I found: ${names}. Please take them strictly according to your prescriber's directions. If any dose is unclear, verify with your pharmacist.`;
         } else {
-          userDataCitations.push(`${latestReport.reportType} (${latestReport.reportDate})`);
+          reply = "The uploaded prescription text was not clearly readable. Please verify your medication details directly with your pharmacist or doctor.";
         }
       } else {
-        reply += loc.noReports || "No diagnostic health reports are uploaded in your account yet. Click **+ ADD HEALTH REPORT** on your dashboard to upload your laboratory documents.";
+        const findings = documentContext.extractedData?.findings || [];
+        if (findings.length > 0) {
+          reply = `In your uploaded ${documentContext.title || 'report'}, we extracted ${findings.length} biomarker(s). Please review the findings with your doctor for clinical interpretation.`;
+        } else {
+          reply = `Your uploaded document ${documentContext.title || ''} is saved in your private records. Please discuss any unusual results with your physician.`;
+        }
       }
     }
 
-    // E. Simplify / Follow-up
-    else if (
-      query.includes('simpler') || query.includes('simple words') || query.includes('simpler words') ||
-      query.includes('சுலபமாக') || query.includes('எளிமையாக') || query.includes('सरल शब्दों')
-    ) {
-      reply += "Think of your blood vessels like a garden hose. Blood pressure is simply how hard the water (your blood) pushes against the inside of the hose as it flows through your body. Keeping that pressure steady protects your heart and organs.";
+    // Medicine Query
+    if (query.includes('medicine') || query.includes('schedule') || query.includes('prescription') || query.includes('pill') || query.includes('tablet')) {
+      if (todaySchedules.length > 0) {
+        reply = `You have ${todaySchedules.length} dose(s) scheduled for today. For example, ${todaySchedules[0].medicineName} (${todaySchedules[0].dosage}) at ${todaySchedules[0].scheduledTime}. Please take medications as prescribed with meals.`;
+      } else if (medicines.length > 0) {
+        reply = `You have ${medicines.length} registered active medication(s) in your profile, including ${medicines[0].name} (${medicines[0].dosage}). None are specifically pending for today.`;
+      } else {
+        reply = "You do not have any active medicines or scheduled doses in your profile today. You can upload a new prescription anytime.";
+      }
     }
-
-    // F. Non-healthcare Question
-    else if (query.includes('capital') && query.includes('france')) {
-      reply += "The capital of France is Paris.\n\n*Note*: As your VitaCare health copilot, I specialize in answering medical, medication, and health-related questions. Feel free to ask about your health records or wellness anytime!";
+    // Blood Test / Report Query
+    else if (query.includes('report') || query.includes('blood test') || query.includes('lab') || query.includes('result') || query.includes('glucose') || query.includes('sugar')) {
+      if (reports.length > 0) {
+        const latest = reports[reports.length - 1];
+        reply = `Your latest uploaded report is ${latest.reportType} from ${latest.labName} dated ${latest.reportDate}. Your documented values have been recorded in your profile. Please discuss any out-of-range findings with your doctor.`;
+      } else {
+        reply = "No health reports have been uploaded to your profile yet. You can attach a laboratory PDF or image using the attachment button to analyze your test results.";
+      }
     }
-
-    // G. General greeting or query
+    // Blood Pressure Query
+    else if (query.includes('blood pressure') || query.includes('bp') || query.includes('hypertension')) {
+      const bp = vitals.find(v => v.metricKey === 'blood_pressure');
+      if (bp) {
+        reply = `Your recorded blood pressure is ${bp.value} ${bp.unit} on ${bp.date}. A standard target resting blood pressure is below 120/80 mmHg. Maintain healthy hydration and consult your doctor for medical advice.`;
+      } else {
+        reply = "Normal resting blood pressure is typically below 120/80 mmHg. Blood pressure can vary with physical activity, stress, and hydration. If you experience dizziness or headaches, consult a healthcare provider.";
+      }
+    }
+    // Sleep & Wellness
+    else if (query.includes('sleep') || query.includes('hydration') || query.includes('water') || query.includes('diet') || query.includes('exercise')) {
+      reply = "Keep a consistent sleep schedule of 7 to 9 hours nightly, drink 2 to 3 liters of water daily, and engage in regular physical activity. If sleep disturbances or fatigue persist, consult a healthcare professional.";
+    }
+    // General Medical Introduction / Question
     else {
-      const patientName = user ? user.name : 'Patient';
-      reply += `Hello ${patientName}! I am your VitaCare AI health assistant.\n\nI can help you understand your health reports, explain medical terms, monitor your blood pressure and vitals, or review your daily medication schedule.\n\nYou can ask:\n• *"What is blood pressure?"*\n• *"What does my latest report say?"*\n• *"What medicines do I have today?"*`;
+      reply = `Hello! I am your AI Health Copilot. I can help explain medical terms, summarize your lab reports, review prescription instructions, and provide preventive health guidance. How may I assist your health today?`;
+    }
+
+    // Adapt for mode if user asks to explain more or detailed
+    if (mode === 'explain') {
+      reply += "\n\n• Always take medications with adequate water as directed.\n• Keep laboratory reference ranges in mind when reviewing test results.\n• Routine check-ups help detect subtle health changes early.";
+    } else if (mode === 'detailed') {
+      reply += "\n\nClinical Background:\nReference ranges reflect healthy population distributions and can vary across testing instruments. Biological factors such as age, fasting status, and hydration significantly impact metabolic measurements. Never alter medication regimens without explicit clinician consultation.";
     }
 
     return {
@@ -815,6 +572,7 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
       mode,
       language: lang,
       userDataCitations,
+      ragSources: ragSources.map(s => ({ title: s.title, sourceName: s.sourceName, url: s.url })),
       disclaimer: loc.disclaimer
     };
   }

@@ -359,6 +359,18 @@ export const AiCopilotView = () => {
     handleSendMessage(msg, doc.id);
   };
 
+  const handleDeleteDocument = async (id, e) => {
+    e?.stopPropagation();
+    if (!window.confirm('Delete this health document and all its extracted data?')) return;
+    try {
+      await api.deleteUserChatDocument(id);
+      setUserSavedDocs(prev => prev.filter(d => d.id !== id));
+      if (selectedDocId === id) setSelectedDocId(null);
+    } catch (err) {
+      console.error('Delete document error:', err);
+    }
+  };
+
   // ----------------------------------------------------------------------------
   // Send Chat Message or Trigger Document OCR Analysis
   // ----------------------------------------------------------------------------
@@ -1087,14 +1099,31 @@ export const AiCopilotView = () => {
               disabled={loading || analyzingDoc}
             />
 
-            <button
-              type="submit"
-              className="btn btn-primary"
-              style={{ borderRadius: 'var(--radius-pill)', padding: '0 20px' }}
-              disabled={loading || analyzingDoc || (!inputMessage.trim() && !attachment)}
-            >
-              <Send size={16} />
-            </button>
+            {loading || analyzingDoc ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ borderRadius: 'var(--radius-pill)', padding: '0 16px', color: '#dc2626', borderColor: '#fca5a5', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
+                onClick={() => {
+                  activeRequestIdRef.current++;
+                  setLoading(false);
+                  setAnalyzingDoc(false);
+                }}
+                title="Stop generation"
+              >
+                <StopCircle size={16} /> Stop
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{ borderRadius: 'var(--radius-pill)', padding: '0 20px' }}
+                disabled={!inputMessage.trim() && !attachment}
+                title="Send message to AI Health Copilot"
+              >
+                <Send size={16} />
+              </button>
+            )}
           </form>
 
           {/* Voice Question Display Card - Directly BELOW the Text Bar */}
@@ -1380,12 +1409,23 @@ export const AiCopilotView = () => {
                     <div>
                       <strong style={{ fontSize: '0.86rem', color: 'var(--navy)' }}>{d.title}</strong>
                       <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                        {d.documentType?.toUpperCase()} • Uploaded on {d.uploadedAt}
+                        {d.documentType?.toUpperCase()} • {d.createdAt ? new Date(d.createdAt).toLocaleDateString() : 'Recently'}
                       </div>
                     </div>
-                    <button type="button" className="btn btn-outline-primary btn-sm" style={{ fontSize: '0.75rem' }}>
-                      Ask Copilot
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button type="button" className="btn btn-outline-primary btn-sm" style={{ fontSize: '0.75rem' }}>
+                        Ask Copilot
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ color: '#dc2626', padding: '4px 8px' }}
+                        onClick={(e) => handleDeleteDocument(d.id, e)}
+                        title="Delete document and extracted data"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
