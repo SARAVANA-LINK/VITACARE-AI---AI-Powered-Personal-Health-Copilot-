@@ -480,6 +480,7 @@ class AiCopilotService {
 
     const profile = db.findOne('user_profiles', p => p.userId === userId);
     const reports = db.find('health_reports', r => r.userId === userId);
+    const extractedValues = db.find('extracted_health_values', v => v.userId === userId);
     const vitals = db.find('vitals', v => v.userId === userId);
     const medicines = db.find('medicines', m => m.userId === userId && m.isActive);
     const today = new Date().toISOString().split('T')[0];
@@ -554,6 +555,7 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
 - Today's Dose Schedule (${todaySchedules.length}): ${todaySchedules.map(s => `${s.scheduledTime} - ${s.medicineName} (${s.dosage}) [Status: ${s.status}]`).join('; ') || 'No doses scheduled for today'}
 - Recent Tracked Vitals (${vitals.length}): ${vitals.slice(-6).map(v => `${v.metricName}: ${v.value} ${v.unit} (Ref: ${v.referenceRange || 'Standard'}, Date: ${v.date})`).join('; ') || 'No vitals recorded'}
 - Verified Diagnostic Reports (${reports.length}): ${reports.slice(-3).map(r => `${r.reportType} from ${r.labName} (${r.reportDate})`).join('; ') || 'No reports uploaded'}
+- Extracted Lab Values (${extractedValues.length}): ${extractedValues.slice(-8).map(v => `${v.metricName}: ${v.value} ${v.unit || ''} (Ref: ${v.referenceRange || 'Standard'})`).join('; ') || 'None recorded'}
 - Current Response Mode: ${mode.toUpperCase()}
 `;
 
@@ -582,6 +584,7 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
           vitalsCount: vitals.length,
           medicinesCount: medicines.length,
           reportsCount: reports.length,
+          extractedValuesCount: extractedValues.length,
           model: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
         },
         createdAt: new Date().toISOString()
@@ -593,7 +596,8 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
         language: lang,
         userDataCitations: [
           ...medicines.map(m => `Medication: ${m.name} (${m.dosage})`),
-          ...vitals.slice(-3).map(v => `${v.metricName}: ${v.value} ${v.unit}`)
+          ...vitals.slice(-3).map(v => `${v.metricName}: ${v.value} ${v.unit}`),
+          ...extractedValues.slice(-5).map(v => `${v.metricName}: ${v.value} ${v.unit || ''}`)
         ],
         contextUsed: {
           vitalsCount: vitals.length,
@@ -706,13 +710,13 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
       generalKnowledge = loc.bpKnowledge;
     }
 
-    // E. Compare Reports Query
+    // E. Compare Reports or Single Report Query
     else if (
-      query.includes('compare') || query.includes('comparison') || query.includes('reports') ||
+      query.includes('compare') || query.includes('comparison') || query.includes('report') || query.includes('lab') || query.includes('test') ||
       query.includes('ஒப்பிடு') || query.includes('పోల్చండి') || query.includes('താരതമ്യം') || query.includes('ಹೋಲಿಸಿ') ||
       query.includes('तुलना') || query.includes('তুলনা')
     ) {
-      if (reports.length >= 2) {
+      if (query.includes('compare') && reports.length >= 2) {
         const r1 = reports[reports.length - 2];
         const r2 = reports[reports.length - 1];
         reply += loc.compareHeader;
@@ -729,14 +733,28 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
             comparedCount++;
             const diff = (parseFloat(v2.value) - parseFloat(matchV1.value)).toFixed(1);
             reply += `• **${v2.metricName}**: ${matchV1.value} ${matchV1.unit} ➔ **${v2.value} ${v2.unit}** (${diff >= 0 ? '+' : ''}${diff})\n`;
+            userDataCitations.push(`${v2.metricName}: ${v2.value} ${v2.unit}`);
           }
         }
 
         if (comparedCount === 0) {
           reply += loc.noOverlap;
         }
-      } else if (reports.length === 1) {
-        reply += loc.singleReport.replace('{{type}}', reports[0].reportType).replace('{{date}}', reports[0].reportDate);
+      } else if (reports.length > 0) {
+        const latestReport = reports[reports.length - 1];
+        reply += `### 📄 ${latestReport.reportType || 'Diagnostic Report'} (${latestReport.reportDate})\n`;
+        reply += `• **Lab**: ${latestReport.labName || 'Diagnostic Laboratory'}\n\n`;
+        const repVals = extractedValues.filter(v => v.reportId === latestReport.id || v.userId === userId);
+        if (repVals.length > 0) {
+          reply += `• **Lab Biomarkers**:\n`;
+          repVals.forEach(v => {
+            reply += `  - **${v.metricName}**: **${v.value} ${v.unit || ''}** (Ref: ${v.referenceRange || 'Standard'})\n`;
+            userDataCitations.push(`${v.metricName}: ${v.value} ${v.unit || ''}`);
+          });
+        } else if (latestReport.rawOcrText) {
+          reply += `• **Summary**: ${latestReport.rawOcrText.slice(0, 200)}\n`;
+          userDataCitations.push(`${latestReport.reportType} (${latestReport.reportDate})`);
+        }
       } else {
         reply += loc.noReports;
       }
@@ -832,6 +850,22 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
       }
     } else if (query.includes('blood pressure') || query.includes('bp') || query.includes('pressure')) {
       reply += "Blood pressure measures the force of blood circulating against the walls of blood vessels. Normal resting blood pressure is generally under 120/80 mmHg. Maintain balanced nutrition, regular physical activity, and review measurements with your physician.";
+    } else if (query.includes('report') || query.includes('lab') || query.includes('test')) {
+      const reports = db.find('health_reports', r => r.userId === userId);
+      const extVals = db.find('extracted_health_values', v => v.userId === userId);
+      if (reports.length > 0) {
+        const latest = reports[reports.length - 1];
+        reply += `Your latest diagnostic record is ${latest.reportType} from ${latest.labName} (${latest.reportDate}). Review findings with your physician.`;
+        if (extVals.length > 0) {
+          extVals.slice(-5).forEach(v => {
+            userDataCitations.push(`${v.metricName}: ${v.value} ${v.unit || ''}`);
+          });
+        } else {
+          userDataCitations.push(`${latest.reportType} (${latest.reportDate})`);
+        }
+      } else {
+        reply += "No diagnostic laboratory reports are recorded in your verified health profile.";
+      }
     } else {
       reply += loc.generalHealthIntro || "VitaCare AI organizes and explains your verified medical records. Please consult your physician for individualized medical diagnosis.";
     }

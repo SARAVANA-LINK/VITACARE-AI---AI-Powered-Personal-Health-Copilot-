@@ -248,7 +248,7 @@ export const AiCopilotView = () => {
               </div>
             </div>
           </div>
-          <span className="badge badge-demo">SAFETY PROTECTED</span>
+          <span className="badge badge-green" style={{ fontWeight: 700 }}>SAFETY PROTECTED</span>
         </div>
 
         {/* Chat Feed */}

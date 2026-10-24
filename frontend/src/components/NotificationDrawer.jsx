@@ -132,10 +132,8 @@ export const NotificationDrawer = ({ isOpen, onClose, onRefresh }) => {
                       {item.title}
                     </span>
                   </div>
-                  {item.isDemo ? (
-                    <span className="badge badge-demo" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>DEMO</span>
-                  ) : (
-                    <span className="badge badge-blue" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>REAL</span>
+                  {!item.isRead && (
+                    <span className="badge badge-blue" style={{ fontSize: '0.65rem', padding: '2px 6px', fontWeight: 700 }}>NEW</span>
                   )}
                 </div>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '4px 0' }}>

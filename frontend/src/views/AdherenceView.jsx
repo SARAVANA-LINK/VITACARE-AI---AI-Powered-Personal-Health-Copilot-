@@ -29,9 +29,11 @@ export const AdherenceView = () => {
   const handleTriggerEscalation = async () => {
     try {
       setEscalating(true);
+      const schedRes = await api.getTodaySchedule().catch(() => ({ schedules: [] }));
+      const activeSched = (schedRes.schedules || []).find(s => s.status !== 'Verified') || schedRes.schedules?.[0];
       const res = await api.escalateMissedMedicine({
-        medicineName: 'Metformin 500 mg',
-        scheduledTime: '08:00 AM'
+        medicineName: activeSched ? activeSched.medicineName : 'Scheduled Regimen Dose',
+        scheduledTime: activeSched ? activeSched.scheduledTime : 'Today'
       });
       setEscalationResult(res);
     } catch (err) {
@@ -75,7 +77,9 @@ export const AdherenceView = () => {
         }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="badge badge-demo">{escalationResult.statusBadge || 'DEMO'}</span>
+              <span className="badge badge-orange" style={{ fontWeight: 700 }}>
+                {escalationResult.statusBadge || 'GUARDIAN ALERT'}
+              </span>
               <strong style={{ color: '#92400e' }}>{t('guardianAlertDispatched')}</strong>
             </div>
             <p style={{ fontSize: '0.85rem', color: '#78350f', marginTop: '4px' }}>

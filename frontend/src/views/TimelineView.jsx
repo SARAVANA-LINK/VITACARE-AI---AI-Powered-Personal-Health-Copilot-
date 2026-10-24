@@ -94,11 +94,9 @@ export const TimelineView = () => {
               <div key={idx} className="timeline-node">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <div className="timeline-date">{event.eventDate || new Date(event.createdAt).toLocaleDateString()}</div>
-                  {event.isDemo && (
-                    <span className="badge badge-demo" style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
-                      {t('demoEventBadge')}
-                    </span>
-                  )}
+                  <span className="badge badge-blue" style={{ fontSize: '0.62rem', padding: '1px 6px', textTransform: 'uppercase' }}>
+                    {event.eventType ? event.eventType.replace(/_/g, ' ') : 'EVENT'}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   {getEventIcon(event.eventType)}

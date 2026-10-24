@@ -68,7 +68,7 @@ export const AlertHistoryView = () => {
             <h1 className="view-title">
               {t('alertHistoryTitle')}
             </h1>
-            <span className="badge badge-demo">{t('auditTrailBadge')}</span>
+            <span className="badge badge-blue" style={{ fontWeight: 700 }}>{t('auditTrailBadge')}</span>
           </div>
           <p className="view-subtitle">
             {t('alertHistorySubtitle')}
