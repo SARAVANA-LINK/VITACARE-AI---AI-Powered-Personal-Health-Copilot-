@@ -68,11 +68,15 @@ export const MedicinesView = ({ onAddPrescription, onOpenReminder }) => {
 
   useEffect(() => {
     fetchData();
-    // Real-time UI: Safe polling interval for automated status updates (Requirement 14)
+    const handleRecordAdded = () => fetchData();
+    window.addEventListener('vitacare_record_added', handleRecordAdded);
     const interval = setInterval(() => {
       fetchData();
     }, 8000);
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener('vitacare_record_added', handleRecordAdded);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleTakeNow = async (id, medName) => {

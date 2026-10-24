@@ -378,28 +378,18 @@ class ExtractionService {
       }
     }
 
-    // Step 5: Guaranteed non-empty fallback starter item so user is NEVER blocked
-    if (extractedMedicines.length === 0) {
-      extractedMedicines.push({
-        medicineName: 'Prescribed Medication',
-        dosage: '500 mg',
-        frequency: 'Once daily',
-        intakeTimes: ['08:00 AM'],
-        duration: '7 days',
-        instructions: 'Take after food with water',
-        confidence: 'medium',
-        status: 'NEEDS VERIFICATION',
-        warning: 'Document text was unclear. Please enter the prescribed medicine name and dosage.',
-        isUncertain: true
-      });
-    }
+    // Step 5: Clinical Safety Guardrail - Never hallucinate or invent dummy medicines
+    const isReadable = extractedMedicines.length > 0;
+    const unreadableReason = isReadable ? null : "We couldn't read this prescription clearly. Please upload a clearer image or enter the medicine details manually.";
 
     return {
+      isReadable: isReadable,
+      unreadableReason: unreadableReason,
       doctorName: doctorName,
       clinicName: clinicName,
       prescriptionDate: prescriptionDate,
       medicines: extractedMedicines,
-      extractionStatus: extractedMedicines.some(m => m.confidence === 'high') ? 'AI EXTRACTED' : 'NEEDS VERIFICATION',
+      extractionStatus: isReadable ? (extractedMedicines.some(m => m.confidence === 'high') ? 'AI EXTRACTED' : 'NEEDS VERIFICATION') : 'UNREADABLE',
       totalItemsFound: extractedMedicines.length
     };
   }
