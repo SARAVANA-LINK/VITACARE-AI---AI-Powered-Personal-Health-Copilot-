@@ -16035,6 +16035,184 @@
       "hasEmergencyWarning": true,
       "disclaimer": "AI Health Copilot மருத்துவர் அல்ல, அவசர மருத்துவ சிகிச்சை அளிக்காது.",
       "createdAt": "2026-10-24T20:00:32.081Z"
+    },
+    {
+      "id": "d784909d-ba35-4ad3-a046-184057e776c2",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "user",
+      "content": "What is the capital of France?",
+      "attachment": null,
+      "documentId": null,
+      "mode": "short",
+      "createdAt": "2026-10-24T20:20:10.649Z"
+    },
+    {
+      "id": "88623888-9af5-41d6-b83f-cd847e327fb5",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "assistant",
+      "content": "I'm your AI Health Copilot. I can help with health information, medical reports, prescriptions, and general healthcare guidance.",
+      "mode": "short",
+      "language": "ta",
+      "userDataCitations": [],
+      "ragSources": [],
+      "hasEmergencyWarning": false,
+      "disclaimer": "நான் ஒரு AI சுகாதார உதவியாளர், மருத்துவர் அல்ல. மருத்துவ முடிவுகளை உங்கள் மருத்துவரிடம் ஆலோசிக்கவும்.",
+      "createdAt": "2026-10-24T20:20:10.660Z"
+    },
+    {
+      "id": "be25f6a6-f42b-4403-aecb-618aa21dd7f2",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "user",
+      "content": "What is a normal blood pressure reading?",
+      "attachment": null,
+      "documentId": null,
+      "mode": "short",
+      "createdAt": "2026-10-24T20:20:15.942Z"
+    },
+    {
+      "id": "c1722dc3-03d2-4409-a68a-e960c4e0012e",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "assistant",
+      "content": "Patient A, a normal blood pressure reading for adults is less than 120/80 mmHg. Your recent reading of 128/82 mmHg falls into the Stage 1 Hypertension category, so it's a good idea to keep an eye on it. Be sure to take your medications as directed and discuss these numbers with your doctor.\n\n---\n*I'm an AI health assistant, not a doctor. I can help explain health information, but a qualified healthcare professional should make medical decisions.*",
+      "mode": "short",
+      "language": "en",
+      "userDataCitations": [
+        "American Heart Association (AHA) / ACC: Adult Blood Pressure Clinical Guidelines & Categories",
+        "American Diabetes Association (ADA): Standard Blood Glucose and HbA1c Reference Standards"
+      ],
+      "ragSources": [
+        {
+          "title": "Adult Blood Pressure Clinical Guidelines & Categories",
+          "sourceName": "American Heart Association (AHA) / ACC",
+          "url": "https://www.heart.org/en/health-topics/high-blood-pressure"
+        },
+        {
+          "title": "Standard Blood Glucose and HbA1c Reference Standards",
+          "sourceName": "American Diabetes Association (ADA)",
+          "url": "https://diabetes.org/clinical-care"
+        }
+      ],
+      "hasEmergencyWarning": false,
+      "disclaimer": "I'm an AI health assistant, not a doctor. I can help explain health information, but a qualified healthcare professional should make medical decisions.",
+      "createdAt": "2026-10-24T20:20:15.957Z"
+    },
+    {
+      "id": "dd13801c-f629-4ce4-aa72-2d3e7c59a589",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "user",
+      "content": "I have severe chest pain and cannot breathe",
+      "attachment": null,
+      "documentId": null,
+      "mode": "short",
+      "createdAt": "2026-10-24T20:20:15.986Z"
+    },
+    {
+      "id": "402c7a5e-045e-4c2d-a07f-c78424cb285b",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "assistant",
+      "content": "⚠️ **அவசர மருத்துவ பாதுகாப்பு எச்சரிக்கை**\n\nநீங்கள் குறிப்பிட்ட அறிகுறிகள் தீவிர மருத்துவ அவசரநிலையைக் குறிக்கலாம்.\n\n• **உடனடி நடவடிக்கை**: தயவுசெய்து அவசர மருத்துவ சேவைகளை (112 / 108) உடனே அழைக்கவும்.\n• **அவசர SOS**: உங்கள் டாஷ்போர்டில் உள்ள அவசர SOS பொத்தானை அழுத்தி பாதுகாவலர் மற்றும் குடும்பத்தினருக்கு உடனடியாக எச்சரிக்கை அனுப்பலாம்.\n• AI Health Copilot என்பது ஒரு சுகாதார வழிகாட்டி மட்டுமே, **மருத்துவர் அல்ல**.\n\nஉடனடியாக மருத்துவ நிபுணரின் உதவியை நாடுங்கள்.",
+      "mode": "short",
+      "language": "ta",
+      "userDataCitations": [],
+      "ragSources": [],
+      "hasEmergencyWarning": true,
+      "disclaimer": "AI Health Copilot மருத்துவர் அல்ல, அவசர மருத்துவ சிகிச்சை அளிக்காது.",
+      "createdAt": "2026-10-24T20:20:16.007Z"
+    },
+    {
+      "id": "f57753b7-cc50-4ded-a88e-12d3b5ef980c",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "user",
+      "content": "What is the capital of France?",
+      "attachment": null,
+      "documentId": null,
+      "mode": "short",
+      "createdAt": "2026-10-24T20:22:02.260Z"
+    },
+    {
+      "id": "ae0a0daf-8571-4519-99ea-ea4926b3a6e6",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "assistant",
+      "content": "I'm your AI Health Copilot. I can help with health information, medical reports, prescriptions, and general healthcare guidance.",
+      "mode": "short",
+      "language": "ta",
+      "userDataCitations": [],
+      "ragSources": [],
+      "hasEmergencyWarning": false,
+      "disclaimer": "நான் ஒரு AI சுகாதார உதவியாளர், மருத்துவர் அல்ல. மருத்துவ முடிவுகளை உங்கள் மருத்துவரிடம் ஆலோசிக்கவும்.",
+      "createdAt": "2026-10-24T20:22:02.273Z"
+    },
+    {
+      "id": "4ae19532-18ba-457d-8b9d-f6043cd58df7",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "user",
+      "content": "What is a normal blood pressure reading?",
+      "attachment": null,
+      "documentId": null,
+      "mode": "short",
+      "createdAt": "2026-10-24T20:22:07.764Z"
+    },
+    {
+      "id": "0afa9b56-5ca9-4f24-a01b-46ff40bac137",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "assistant",
+      "content": "Patient A, a normal blood pressure reading is less than 120/80 mmHg. Your recent reading was 128/82 mmHg, which falls into the Stage 1 Hypertension category. Always take your medications as directed and consult your doctor to discuss these numbers.\n\n---\n*I'm an AI health assistant, not a doctor. I can help explain health information, but a qualified healthcare professional should make medical decisions.*",
+      "mode": "short",
+      "language": "en",
+      "userDataCitations": [
+        "American Heart Association (AHA) / ACC: Adult Blood Pressure Clinical Guidelines & Categories",
+        "American Diabetes Association (ADA): Standard Blood Glucose and HbA1c Reference Standards"
+      ],
+      "ragSources": [
+        {
+          "title": "Adult Blood Pressure Clinical Guidelines & Categories",
+          "sourceName": "American Heart Association (AHA) / ACC",
+          "url": "https://www.heart.org/en/health-topics/high-blood-pressure"
+        },
+        {
+          "title": "Standard Blood Glucose and HbA1c Reference Standards",
+          "sourceName": "American Diabetes Association (ADA)",
+          "url": "https://diabetes.org/clinical-care"
+        }
+      ],
+      "hasEmergencyWarning": false,
+      "disclaimer": "I'm an AI health assistant, not a doctor. I can help explain health information, but a qualified healthcare professional should make medical decisions.",
+      "createdAt": "2026-10-24T20:22:07.778Z"
+    },
+    {
+      "id": "5de23e10-7ac4-4273-9b87-d4075e259757",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "user",
+      "content": "I have severe chest pain and cannot breathe",
+      "attachment": null,
+      "documentId": null,
+      "mode": "short",
+      "createdAt": "2026-10-24T20:22:07.804Z"
+    },
+    {
+      "id": "4775b881-cdff-486f-b473-2e6cbff761f8",
+      "userId": "user-patient-a",
+      "threadId": "default",
+      "role": "assistant",
+      "content": "⚠️ **அவசர மருத்துவ பாதுகாப்பு எச்சரிக்கை**\n\nநீங்கள் குறிப்பிட்ட அறிகுறிகள் தீவிர மருத்துவ அவசரநிலையைக் குறிக்கலாம்.\n\n• **உடனடி நடவடிக்கை**: தயவுசெய்து அவசர மருத்துவ சேவைகளை (112 / 108) உடனே அழைக்கவும்.\n• **அவசர SOS**: உங்கள் டாஷ்போர்டில் உள்ள அவசர SOS பொத்தானை அழுத்தி பாதுகாவலர் மற்றும் குடும்பத்தினருக்கு உடனடியாக எச்சரிக்கை அனுப்பலாம்.\n• AI Health Copilot என்பது ஒரு சுகாதார வழிகாட்டி மட்டுமே, **மருத்துவர் அல்ல**.\n\nஉடனடியாக மருத்துவ நிபுணரின் உதவியை நாடுங்கள்.",
+      "mode": "short",
+      "language": "ta",
+      "userDataCitations": [],
+      "ragSources": [],
+      "hasEmergencyWarning": true,
+      "disclaimer": "AI Health Copilot மருத்துவர் அல்ல, அவசர மருத்துவ சிகிச்சை அளிக்காது.",
+      "createdAt": "2026-10-24T20:22:07.823Z"
     }
   ],
   "medicine_alerts_history": [
@@ -22321,8 +22499,8 @@
       ],
       "content": "Normal blood pressure for adults is defined as systolic less than 120 mmHg and diastolic less than 80 mmHg (<120/80 mmHg). Elevated blood pressure is systolic 120-129 and diastolic <80. Stage 1 Hypertension is systolic 130-139 or diastolic 80-89. Stage 2 Hypertension is systolic 140 or higher, or diastolic 90 or higher. Hypertensive crisis requiring immediate emergency care is systolic >180 and/or diastolic >120 with symptoms like chest pain, shortness of breath, or numbness.",
       "createdAt": "2026-10-24T19:56:07.426Z",
-      "updatedAt": "2026-10-24T20:00:32.168Z",
-      "lastIndexedAt": "2026-10-24T20:00:32.168Z"
+      "updatedAt": "2026-10-24T20:22:07.908Z",
+      "lastIndexedAt": "2026-10-24T20:22:07.908Z"
     },
     {
       "id": "kb_glucose_ada",
@@ -22345,8 +22523,8 @@
       ],
       "content": "Fasting Plasma Glucose (FPG): Normal is 70 to 99 mg/dL. Pre-diabetes (impaired fasting glucose) is 100 to 125 mg/dL. Diabetes diagnosis threshold is 126 mg/dL or higher on more than one testing occasion. Post-prandial (2 hours post-meal) blood sugar: Normal is less than 140 mg/dL, pre-diabetes is 140 to 199 mg/dL, and diabetes is 200 mg/dL or higher. HbA1c: Normal is below 5.7%, pre-diabetes is 5.7% to 6.4%, and diabetes is 6.5% or higher.",
       "createdAt": "2026-10-24T19:56:07.443Z",
-      "updatedAt": "2026-10-24T20:00:32.168Z",
-      "lastIndexedAt": "2026-10-24T20:00:32.168Z"
+      "updatedAt": "2026-10-24T20:22:07.908Z",
+      "lastIndexedAt": "2026-10-24T20:22:07.908Z"
     },
     {
       "id": "kb_cbc_medline",
@@ -22369,8 +22547,8 @@
       ],
       "content": "Hemoglobin (Hb) reference ranges: Normal adult males typically range 13.5 to 17.5 g/dL; adult non-pregnant females typically range 12.0 to 15.5 g/dL. Low hemoglobin suggests anemia, blood loss, or nutritional deficiencies (iron, B12, folate). High hemoglobin can stem from dehydration, smoking, high altitude, or lung conditions. White Blood Cells (WBC): 4,500 to 11,000 cells/mcL. Platelets: 150,000 to 450,000/mcL.",
       "createdAt": "2026-10-24T19:56:07.461Z",
-      "updatedAt": "2026-10-24T20:00:32.168Z",
-      "lastIndexedAt": "2026-10-24T20:00:32.168Z"
+      "updatedAt": "2026-10-24T20:22:07.908Z",
+      "lastIndexedAt": "2026-10-24T20:22:07.908Z"
     },
     {
       "id": "kb_lipid_cdc",
@@ -22391,8 +22569,8 @@
       ],
       "content": "Total Cholesterol: Desirable is under 200 mg/dL; 200-239 is borderline high; 240+ is high. LDL (bad) cholesterol: Optimal is under 100 mg/dL; 100-129 is near optimal; 130-159 is borderline high; 160-189 is high. HDL (protective) cholesterol: 40 mg/dL or higher for men, 50 mg/dL or higher for women (higher is better). Triglycerides: Normal is under 150 mg/dL; 150-199 is borderline high; 200-499 is high.",
       "createdAt": "2026-10-24T19:56:07.472Z",
-      "updatedAt": "2026-10-24T20:00:32.168Z",
-      "lastIndexedAt": "2026-10-24T20:00:32.168Z"
+      "updatedAt": "2026-10-24T20:22:07.908Z",
+      "lastIndexedAt": "2026-10-24T20:22:07.908Z"
     },
     {
       "id": "kb_kidney_nkf",
@@ -22414,8 +22592,8 @@
       ],
       "content": "Serum Creatinine: Normal for adult men is 0.7 to 1.3 mg/dL; for adult women is 0.6 to 1.1 mg/dL. Elevated creatinine can signify reduced kidney filtration, dehydration, or heavy muscle breakdown. eGFR (Estimated Glomerular Filtration Rate): Normal is 90 mL/min/1.73m² or higher. eGFR between 60-89 may indicate early stage kidney damage if other markers present; below 60 suggests chronic kidney disease. Blood Urea Nitrogen (BUN): Normal range is 7 to 20 mg/dL.",
       "createdAt": "2026-10-24T19:56:07.483Z",
-      "updatedAt": "2026-10-24T20:00:32.168Z",
-      "lastIndexedAt": "2026-10-24T20:00:32.168Z"
+      "updatedAt": "2026-10-24T20:22:07.908Z",
+      "lastIndexedAt": "2026-10-24T20:22:07.908Z"
     },
     {
       "id": "kb_liver_mayo",
@@ -22438,8 +22616,8 @@
       ],
       "content": "Alanine Transaminase (ALT/SGPT): Standard range is 7 to 56 U/L. Aspartate Transaminase (AST/SGOT): Standard range is 10 to 40 U/L. Elevated ALT/AST indicates hepatocellular inflammation or injury (viral hepatitis, fatty liver, medication reaction, alcohol). Total Bilirubin: 0.2 to 1.2 mg/dL. Serum Albumin: 3.5 to 5.0 g/dL. Minor enzyme elevations must always be evaluated in clinical context and do not automatically mean irreversible liver disease.",
       "createdAt": "2026-10-24T19:56:07.494Z",
-      "updatedAt": "2026-10-24T20:00:32.168Z",
-      "lastIndexedAt": "2026-10-24T20:00:32.168Z"
+      "updatedAt": "2026-10-24T20:22:07.908Z",
+      "lastIndexedAt": "2026-10-24T20:22:07.908Z"
     },
     {
       "id": "kb_thyroid_ata",
@@ -22460,8 +22638,8 @@
       ],
       "content": "Thyroid-Stimulating Hormone (TSH): Standard normal reference range is typically 0.4 to 4.0 mIU/L (may vary slightly by laboratory). Elevated TSH indicates an underactive thyroid (hypothyroidism). Suppressed or low TSH indicates an overactive thyroid (hyperthyroidism). Free T4 (Thyroxine): Normal range is typically 0.8 to 1.8 ng/dL.",
       "createdAt": "2026-10-24T19:56:07.511Z",
-      "updatedAt": "2026-10-24T20:00:32.168Z",
-      "lastIndexedAt": "2026-10-24T20:00:32.168Z"
+      "updatedAt": "2026-10-24T20:22:07.908Z",
+      "lastIndexedAt": "2026-10-24T20:22:07.908Z"
     },
     {
       "id": "kb_rx_safety_fda",
@@ -22484,8 +22662,8 @@
       ],
       "content": "Medication administration guidelines: Always take medications exactly as prescribed by your licensed physician or healthcare provider. Never alter doses or stop antibiotic courses early unless instructed by your clinician. If a medicine label, handwritten dosage, or tablet strength is blurred or ambiguous, never guess — verify directly with a licensed pharmacist or prescribing physician before taking. Report any unexpected rash, facial swelling, or breathing difficulty immediately.",
       "createdAt": "2026-10-24T19:56:07.524Z",
-      "updatedAt": "2026-10-24T20:00:32.168Z",
-      "lastIndexedAt": "2026-10-24T20:00:32.168Z"
+      "updatedAt": "2026-10-24T20:22:07.908Z",
+      "lastIndexedAt": "2026-10-24T20:22:07.908Z"
     },
     {
       "id": "kb_wellness_who",
@@ -22508,8 +22686,8 @@
       ],
       "content": "Adult wellness foundations: Adults require 7 to 9 hours of quality, uninterrupted sleep per night for metabolic and cognitive repair. Daily water intake of 2.0 to 3.0 liters is recommended for healthy adults under normal conditions. Maintain at least 150-300 minutes of moderate-intensity aerobic exercise or 75-150 minutes of vigorous aerobic activity weekly. Emphasize a plant-rich, whole-food diet with balanced protein and limited sodium (<2g/day) to support long-term cardiovascular health.",
       "createdAt": "2026-10-24T19:56:07.540Z",
-      "updatedAt": "2026-10-24T20:00:32.168Z",
-      "lastIndexedAt": "2026-10-24T20:00:32.168Z"
+      "updatedAt": "2026-10-24T20:22:07.908Z",
+      "lastIndexedAt": "2026-10-24T20:22:07.908Z"
     },
     {
       "id": "kb_emergency_mohfw",
@@ -22532,8 +22710,8 @@
       ],
       "content": "Acute medical red flags require immediate emergency intervention: 1) Crushing chest pressure or tightness radiating to jaw, left arm, or back; 2) FAST stroke signs: Facial drooping, Arm weakness, Slurred speech, Time to call emergency; 3) Severe difficulty breathing or gasping; 4) Sudden loss of consciousness or severe head trauma; 5) Severe anaphylaxis with throat swelling or hives. In India, call 112 (National Emergency) or 108 (Ambulance). Do not delay emergency transport for an online consultation.",
       "createdAt": "2026-10-24T19:56:07.552Z",
-      "updatedAt": "2026-10-24T20:00:32.168Z",
-      "lastIndexedAt": "2026-10-24T20:00:32.168Z"
+      "updatedAt": "2026-10-24T20:22:07.908Z",
+      "lastIndexedAt": "2026-10-24T20:22:07.908Z"
     }
   ],
   "user_documents": [

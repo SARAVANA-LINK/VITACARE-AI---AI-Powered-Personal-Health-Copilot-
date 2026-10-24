@@ -49,6 +49,23 @@ const AI_LOCALES = {
     disclaimer: "I'm an AI health assistant, not a doctor. I can help explain health information, but a qualified healthcare professional should make medical decisions."
   },
 
+  tanglish: {
+    emergencyTitle: "⚠️ **AVASARA MARUTHUVA PAATHUKAAPPU ECHARIKKAI**",
+    emergencyBody: "Neenga sonna symptoms periya medical emergency-ah irukkalaam.\n\n• **Udanadi Action**: Dayavu senju udane emergency service-ah call pannunga (112 in India, 108 / 911).\n• **Emergency SOS**: Unga dashboard-la irukura Emergency SOS button-ah click panni guardian-ku alert anuppalaam.\n• AI Health Copilot ungalukku oru assistant mattum thaan, **doctor kedaiyaadhu**.\n\nUdane doctor kitta consult pannunga.",
+    emergencyDisclaimer: "AI Health Copilot doctor kedaiyaadhu, avasara chikitchai thara mudiyaadhu.",
+    medScheduleHeader: "### 💊 Innaiki Ungaloda Medicine Schedule\n\n",
+    medScheduledFor: "time",
+    instructions: "Vazhimuraigal",
+    statusLabel: "Status",
+    statusTaken: "✅ Saapittaachu (Verified)",
+    statusMissed: "❌ Miss aaiduchu",
+    statusUpcoming: "⏳ Vara pogudhu",
+    nextDose: "Adutha marunthu",
+    activeMedsCount: "Unga account-la **{{count}}** active marunthuga irukku:\n",
+    noMedsToday: "Innaiki edhuvum medicine schedule aagala. Pudhu prescription upload pannalaam.",
+    disclaimer: "Naan oru AI health assistant, doctor kedaiyaadhu. Maruthuva mudivugalai unga doctor kitta aalosanai panna vendum."
+  },
+
   ta: {
     emergencyTitle: "⚠️ **அவசர மருத்துவ பாதுகாப்பு எச்சரிக்கை**",
     emergencyBody: "நீங்கள் குறிப்பிட்ட அறிகுறிகள் தீவிர மருத்துவ அவசரநிலையைக் குறிக்கலாம்.\n\n• **உடனடி நடவடிக்கை**: தயவுசெய்து அவசர மருத்துவ சேவைகளை (112 / 108) உடனே அழைக்கவும்.\n• **அவசர SOS**: உங்கள் டாஷ்போர்டில் உள்ள அவசர SOS பொத்தானை அழுத்தி பாதுகாவலர் மற்றும் குடும்பத்தினருக்கு உடனடியாக எச்சரிக்கை அனுப்பலாம்.\n• AI Health Copilot என்பது ஒரு சுகாதார வழிகாட்டி மட்டுமே, **மருத்துவர் அல்ல**.\n\nஉடனடியாக மருத்துவ நிபுணரின் உதவியை நாடுங்கள்.",
@@ -292,10 +309,157 @@ class AiCopilotService {
       'creatinine', 'kidney', 'liver', 'lft', 'alt', 'ast', 'bilirubin', 'thyroid', 'tsh', 't3', 't4', 'allergy', 'allergies',
       'asthma', 'breathing', 'breath', 'chest', 'stroke', 'emergency', 'sos', '112', '108', '911', 'wound', 'bleeding', 'rash',
       'tanglish', 'marunthu', 'maathirai', 'udambu', 'raththam', 'vali', 'maruthuvar',
-      'document', 'upload', 'uploaded', 'attachment', 'scan', 'findings', 'biomarker', 'reading', 'vitals', 'summary', 'explain this', 'clarify'
+      'மருத்துவம்', 'மருந்து', 'மாத்திரை', 'வலி', 'சர்க்கரை', 'இரத்த', 'நோயாளி', 'மருத்துவர்', 'உடல்நலம்', 'நெஞ்சு',
+      'రక్తపోటు', 'మందు', 'వైద్య', 'ఆరోగ్యం', 'షుగర్', 'రక్తం', 'డాక్టర్', 'నొప్పి', 'గుండె',
+      'स्वास्थ्य', 'दवा', 'दवाई', 'रक्तचाप', 'शुगर', 'बीमारी', 'दर्द', 'इलाज', 'डॉक्टर', 'सीने',
+      'document', 'upload', 'uploaded', 'attachment', 'scan', 'findings', 'biomarker', 'reading', 'vitals', 'summary', 'explain this', 'clarify',
+      'appointment', 'appointments', 'book', 'dr', 'visit', 'remind', 'reminder', 'trend', 'trends', 'compare', 'difference', 'taken', 'took'
     ];
 
     return medicalKeywords.some(kw => q.includes(kw));
+  }
+
+  /**
+   * Agentic Action: Detect and execute user requests like taking medicine, booking appointments, or comparing trends.
+   */
+  async executeAgenticAction(userId, query, lang = 'en') {
+    const q = (query || '').toLowerCase().trim();
+    const loc = AI_LOCALES[lang] || AI_LOCALES['en'];
+
+    // Action 1: Medicine Intake Recording ("I took my medicine", "mark as taken", "took my pill", "saapittaachu")
+    if (
+      (q.includes('took') || q.includes('taken') || q.includes('mark') || q.includes('drank') || q.includes('saapitt') || q.includes('saapt')) &&
+      (q.includes('medicine') || q.includes('tablet') || q.includes('pill') || q.includes('dose') || q.includes('marunthu') || q.includes('maathirai') || q.includes('dawai'))
+    ) {
+      const today = new Date().toISOString().split('T')[0];
+      const schedules = db.find('medicine_schedules', s => s.userId === userId && s.scheduledDate === today);
+      const pendingDoses = schedules.filter(s => s.status !== 'taken' && s.status !== 'Verified');
+
+      if (pendingDoses.length > 0) {
+        // Find best match if specific medicine mentioned, otherwise pick the earliest
+        let target = pendingDoses[0];
+        for (const dose of pendingDoses) {
+          if (q.includes(dose.medicineName.toLowerCase())) {
+            target = dose;
+            break;
+          }
+        }
+
+        // Update schedule status to taken / Verified
+        db.update('medicine_schedules', s => s.id === target.id, {
+          status: 'Verified',
+          takenAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+
+        // Record on medical timeline
+        db.insert('medical_timeline', {
+          userId,
+          eventType: 'dose_taken',
+          title: `Medicine Taken: ${target.medicineName}`,
+          description: `Patient logged ${target.medicineName} (${target.dosage}) via AI Health Copilot at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
+          eventDate: today
+        });
+
+        const reply = lang === 'ta'
+          ? `✅ உங்கள் ${target.medicineName} (${target.scheduledTime}) மருந்து உட்கொள்ளப்பட்டதாக பதிவு செய்யப்பட்டது. மருந்துகளை தவறாமல் உட்கொள்வது உங்கள் உடல்நலத்திற்கு மிகவும் நல்லது!`
+          : lang === 'tanglish'
+          ? `✅ Ungaloda ${target.medicineName} (${target.scheduledTime}) medicine eduthukittadha mark pannitten. Super, regular-ah medicine eduthukonga!`
+          : `✅ I have marked your **${target.medicineName}** (${target.dosage}) scheduled for ${target.scheduledTime} as taken and verified. Excellent consistency staying on track with your regimen!`;
+
+        return {
+          reply: `${reply}\n\n---\n*${loc.disclaimer}*`,
+          actionTaken: 'MARK_DOSE_TAKEN',
+          scheduleId: target.id
+        };
+      } else if (schedules.length > 0) {
+        const reply = "All scheduled doses for today have already been marked as taken! You are completely up to date with your medication schedule today.";
+        return { reply: `${reply}\n\n---\n*${loc.disclaimer}*`, actionTaken: 'NONE' };
+      }
+    }
+
+    // Action 2: Doctor Appointment Scheduling ("Book appointment with Dr. Sarah", "Schedule doctor visit")
+    if ((q.includes('book') || q.includes('schedule') || q.includes('make')) && (q.includes('appointment') || q.includes('visit') || q.includes('doctor') || q.includes('dr.'))) {
+      // Extract Doctor Name
+      let doctorName = 'Dr. Sarah Lin, MD';
+      const drMatch = query.match(/dr\.?\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/i);
+      if (drMatch) doctorName = `Dr. ${drMatch[1]}`;
+
+      // Date: Look for date string or default to 3 days from today
+      const dateTarget = new Date();
+      dateTarget.setDate(dateTarget.getDate() + 3);
+      const apptDate = dateTarget.toISOString().split('T')[0];
+      const apptTime = '10:30 AM';
+
+      const newAppt = db.insert('appointments', {
+        userId,
+        doctorName,
+        specialty: 'Internal Medicine',
+        clinicName: 'Specialty Healthcare Outpatient Clinic',
+        appointmentDate: apptDate,
+        appointmentTime: apptTime,
+        location: 'Consultation Suite 402',
+        status: 'confirmed',
+        reminderEnabled: true,
+        notes: 'Booked via AI Health Copilot request',
+        createdAt: new Date().toISOString()
+      });
+
+      db.insert('medical_timeline', {
+        userId,
+        eventType: 'appointment_scheduled',
+        title: `Appointment Confirmed: ${doctorName}`,
+        description: `Visit with ${doctorName} scheduled for ${apptDate} at ${apptTime}.`,
+        eventDate: apptDate
+      });
+
+      const reply = `✅ I have scheduled your doctor appointment with **${doctorName}** for **${apptDate}** at **${apptTime}**. A calendar reminder has been added to your profile. Please bring your recent test reports to the visit.`;
+      return {
+        reply: `${reply}\n\n---\n*${loc.disclaimer}*`,
+        actionTaken: 'BOOK_APPOINTMENT',
+        appointmentId: newAppt.id
+      };
+    }
+
+    // Action 3: Health Report Comparison ("Compare my recent reports", "How is my hemoglobin trending?", "Compare glucose")
+    if (q.includes('compare') || q.includes('trend') || q.includes('trending') || q.includes('difference') || q.includes('ஒப்பிடு')) {
+      const reports = db.find('health_reports', r => r.userId === userId);
+      if (reports.length >= 2) {
+        reports.sort((a, b) => new Date(a.reportDate) - new Date(b.reportDate));
+        const prevReport = reports[reports.length - 2];
+        const currReport = reports[reports.length - 1];
+
+        const prevValues = db.find('extracted_health_values', v => v.reportId === prevReport.id);
+        const currValues = db.find('extracted_health_values', v => v.reportId === currReport.id);
+
+        const comparisons = [];
+        for (const curr of currValues) {
+          const prev = prevValues.find(p => p.metricKey === curr.metricKey);
+          if (prev) {
+            comparisons.push(`${curr.metricName}: was **${prev.value} ${prev.unit || ''}** (${prevReport.reportDate}) and is now **${curr.value} ${curr.unit || ''}** (${currReport.reportDate})`);
+          }
+        }
+
+        let reply = `### 📊 Health Trends & Report Comparison\nComparing your reports from **${prevReport.reportDate}** and **${currReport.reportDate}**:\n\n`;
+        if (comparisons.length > 0) {
+          reply += comparisons.map(c => `• ${c}`).join('\n');
+          reply += '\n\nPlease review these parameter changes with your healthcare provider during your next consultation.';
+        } else {
+          reply += `Your two most recent records (${prevReport.reportType} and ${currReport.reportType}) test different clinical panels. You can view granular metrics in the Compare Reports section.`;
+        }
+
+        return {
+          reply: `${reply}\n\n---\n*${loc.disclaimer}*`,
+          actionTaken: 'COMPARE_REPORTS'
+        };
+      } else if (reports.length === 1) {
+        const single = reports[0];
+        const reply = `You currently have 1 uploaded report (${single.reportType} from ${single.reportDate}). When you upload a subsequent laboratory test, I will automatically calculate side-by-side metric trends for you!`;
+        return { reply: `${reply}\n\n---\n*${loc.disclaimer}*`, actionTaken: 'NONE' };
+      }
+    }
+
+    return null; // Not an explicit command; proceed to clinical generative reasoning
   }
 
   /**
@@ -303,13 +467,14 @@ class AiCopilotService {
    * @param {string} userId - Authenticated user ID
    * @param {string} userMessage - Natural language patient query
    * @param {string} mode - 'short' (default, 2-5 sentences) | 'explain' (1-2 paragraphs) | 'detailed' (deep clinical context)
-   * @param {string} requestedLang - 'en' | 'ta' | 'te' | 'hi' | 'ml' | 'kn' | 'bn' | 'mr'
+   * @param {string} requestedLang - 'en' | 'ta' | 'tanglish' | 'te' | 'hi' | 'ml' | 'kn' | 'bn' | 'mr'
    * @param {Array} history - Optional recent conversation history
    * @param {Object} documentContext - Optional attached document extraction
    */
   async generateResponse(userId, userMessage, mode = 'short', requestedLang = null, history = null, documentContext = null) {
     const user = db.findById('users', userId);
-    const lang = requestedLang || user?.preferredLanguage || 'en';
+    let lang = requestedLang || user?.preferredLanguage || 'en';
+    if (lang === 'ta-en') lang = 'tanglish';
     const loc = AI_LOCALES[lang] || AI_LOCALES['en'];
 
     const normalizedMode = (mode === 'simple' || mode === 'short') ? 'short' 
@@ -318,20 +483,7 @@ class AiCopilotService {
 
     const query = (userMessage || '').toLowerCase();
 
-    // 1. Strict Healthcare Scope Verification
-    const isMedical = this.isMedicalQuery(userMessage, documentContext);
-    if (!isMedical) {
-      const redirectReply = "I'm your AI Health Copilot. I can help with health information, medical reports, prescriptions, and general healthcare guidance.";
-      return {
-        reply: redirectReply,
-        mode: normalizedMode,
-        language: lang,
-        isOutOfScope: true,
-        disclaimer: loc.disclaimer
-      };
-    }
-
-    // 2. Critical Emergency Symptom Triage Check
+    // 1. Critical Emergency Symptom Triage Check (evaluated first for patient safety)
     const emergencyKeywords = [
       'chest pain', 'heart attack', 'cannot breathe', 'severe shortness of breath',
       'stroke', 'sudden weakness', 'face drooping', 'slurred speech',
@@ -353,13 +505,38 @@ class AiCopilotService {
       };
     }
 
-    // 3. RAG: Retrieve Relevant Authoritative Medical Knowledge
+    // 2. Strict Healthcare Scope Verification
+    const isMedical = this.isMedicalQuery(userMessage, documentContext);
+    if (!isMedical) {
+      const redirectReply = "I'm your AI Health Copilot. I can help with health information, medical reports, prescriptions, and general healthcare guidance.";
+      return {
+        reply: redirectReply,
+        mode: normalizedMode,
+        language: lang,
+        isOutOfScope: true,
+        disclaimer: loc.disclaimer
+      };
+    }
+
+    // 3. Agentic Action Check (Medicine intake logging, Appointment booking, Report diffs)
+    const agenticResult = await this.executeAgenticAction(userId, userMessage, lang);
+    if (agenticResult) {
+      return {
+        reply: agenticResult.reply,
+        mode: normalizedMode,
+        language: lang,
+        actionTaken: agenticResult.actionTaken,
+        disclaimer: loc.disclaimer
+      };
+    }
+
+    // 4. RAG: Retrieve Relevant Authoritative Medical Knowledge
     const ragSources = medicalKnowledgeService.retrieveRelevantKnowledge(userMessage, 2);
     const ragContextStr = ragSources.length > 0 
       ? ragSources.map(s => `[SOURCE: ${s.sourceName} - ${s.title}]\n${s.snippet}`).join('\n\n')
       : 'Standard clinical reference guidelines.';
 
-    // 4. Resolve Patient's Private Records (Strictly User Isolated)
+    // 5. Resolve Patient's Private Records (Strictly User Isolated)
     const profile = db.findOne('user_profiles', p => p.userId === userId);
     const reports = db.find('health_reports', r => r.userId === userId);
     const extractedValues = db.find('extracted_health_values', v => v.userId === userId);
@@ -367,8 +544,9 @@ class AiCopilotService {
     const medicines = db.find('medicines', m => m.userId === userId && m.isActive);
     const today = new Date().toISOString().split('T')[0];
     const todaySchedules = db.find('medicine_schedules', s => s.userId === userId && s.scheduledDate === today);
+    const appointments = db.find('appointments', a => a.userId === userId);
 
-    // 5. Multi-Turn Conversation History (isolated per user)
+    // 6. Multi-Turn Conversation History (isolated per user)
     let conversationHistory = [];
     if (Array.isArray(history) && history.length > 0) {
       conversationHistory = history.slice(-6);
@@ -378,9 +556,10 @@ class AiCopilotService {
       conversationHistory = storedConvs.slice(-6).map(c => ({ role: c.role, content: c.content }));
     }
 
-    // 6. Build Gemini Multimodal & Clinical System Prompt
+    // 7. Build Gemini Multimodal & Clinical System Prompt
     const languageNames = {
       en: 'English',
+      tanglish: 'Tanglish (Tamil spoken naturally in English script)',
       ta: 'Tamil (தமிழ்)',
       te: 'Telugu (తెలుగు)',
       ml: 'Malayalam (മലയാളം)',
@@ -391,7 +570,7 @@ class AiCopilotService {
     };
     const targetLanguage = languageNames[lang] || 'English';
 
-    const systemPrompt = `You are AI Health Copilot – an intelligent, empathetic, and clinically grounded medical AI assistant.
+    const systemPrompt = `You are AI Health Copilot – an intelligent, empathetic, and clinically grounded agentic medical AI assistant.
 
 CRITICAL SCOPE DIRECTIVE:
 You answer ONLY health, medical, prescription, laboratory report, and wellness questions.
@@ -402,7 +581,8 @@ Reply PRECISELY with:
 RESPONSE LENGTH REQUIREMENTS:
 - Mode "SHORT" (Default):
   * Keep your response usually between 2 to 5 short, friendly sentences.
-  * Use simple everyday English (or the selected language).
+  * Use simple everyday words.
+  * Personalize using the patient's name and actual records.
   * Avoid unnecessary technical jargon.
   * Do not repeat the user's question.
   * Do not output long multi-paragraph essays.
@@ -414,9 +594,10 @@ RESPONSE LENGTH REQUIREMENTS:
 PATIENT-FRIENDLY CLINICAL SAFETY GUIDELINES:
 1. Educational Support Only: Explain health terms, test results, and prescriptions clearly. Do not provide a definitive diagnosis from a single result.
 2. Uncertain Text Rule: Never guess an unclear medicine name, dose, or strength. If text is ambiguous or unreadable, advise: "Unable to read clearly — please confirm with your pharmacist or prescriber."
-3. Medication Guidance: Never independently create, change, or recommend altering a prescription. Emphasize taking medicines as directed.
-4. Emergency Guidance: If life-threatening symptoms appear, advise contacting emergency services immediately (112 in India, 911, or local emergency services).
-5. Grounding: Ground all personal health answers strictly in the Patient Verified Health Records and RAG references below. Never hallucinate reports or records that do not exist.
+3. Medication Guidance: Never independently create, change, or recommend altering a prescription dosage. Emphasize taking medicines as directed.
+4. Doctor Appointments: Help the user understand when their appointments are, prepare questions, and review notes.
+5. Emergency Guidance: If life-threatening symptoms appear, advise contacting emergency services immediately (112 in India, 911, or local emergency services).
+6. Grounding: Ground all personal health answers strictly in the Patient Verified Health Records and RAG references below. Never hallucinate reports or records that do not exist.
 
 AUTHORITATIVE MEDICAL KNOWLEDGE (RAG):
 ${ragContextStr}
@@ -425,8 +606,10 @@ PATIENT'S VERIFIED HEALTH CONTEXT (PRIVATE TO THIS PATIENT):
 - Patient Name: ${user?.name || 'Patient'}
 - Blood Group: ${user?.bloodGroup || 'Not specified'}
 - Allergies: ${(profile?.allergies && profile.allergies.length > 0) ? (Array.isArray(profile.allergies) ? profile.allergies.join(', ') : profile.allergies) : 'None recorded'}
+- Chronic Conditions: ${(profile?.chronicConditions && profile.chronicConditions.length > 0) ? (Array.isArray(profile.chronicConditions) ? profile.chronicConditions.join(', ') : profile.chronicConditions) : 'None recorded'}
 - Active Medications (${medicines.length}): ${medicines.map(m => `${m.name} (${m.dosage}, ${m.frequency})`).join('; ') || 'No active medications recorded'}
 - Today's Dose Schedule (${todaySchedules.length}): ${todaySchedules.map(s => `${s.scheduledTime} - ${s.medicineName} (${s.dosage}) [Status: ${s.status}]`).join('; ') || 'No doses scheduled for today'}
+- Upcoming Doctor Appointments (${appointments.length}): ${appointments.slice(-3).map(a => `${a.appointmentDate} at ${a.appointmentTime || '10:00 AM'} with ${a.doctorName} (${a.specialty})`).join('; ') || 'No upcoming appointments booked'}
 - Recent Tracked Vitals (${vitals.length}): ${vitals.slice(-4).map(v => `${v.metricName}: ${v.value} ${v.unit} (Ref: ${v.referenceRange || 'Standard'})`).join('; ') || 'No vitals recorded'}
 - Verified Diagnostic Reports (${reports.length}): ${reports.slice(-3).map(r => `${r.reportType} from ${r.labName} (${r.reportDate})`).join('; ') || 'No reports uploaded'}
 - Extracted Lab Values (${extractedValues.length}): ${extractedValues.slice(-6).map(v => `${v.metricName}: ${v.value} ${v.unit || ''} (Ref: ${v.referenceRange || 'Standard'})`).join('; ') || 'None recorded'}
@@ -440,7 +623,6 @@ RESPONSE MODE: ${normalizedMode.toUpperCase()}.
     const geminiReply = await this.callGemini(systemPrompt, conversationHistory, userMessage, maxTokens);
 
     if (geminiReply) {
-      // Check if Gemini detected out-of-scope and returned redirect
       if (geminiReply.includes("I'm your AI Health Copilot. I can help with health information")) {
         return {
           reply: "I'm your AI Health Copilot. I can help with health information, medical reports, prescriptions, and general healthcare guidance.",
@@ -464,6 +646,7 @@ RESPONSE MODE: ${normalizedMode.toUpperCase()}.
           vitalsCount: vitals.length,
           reportsCount: reports.length,
           medicinesCount: medicines.length,
+          appointmentsCount: appointments.length,
           ragCount: ragSources.length,
           aiModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
         },
@@ -471,7 +654,7 @@ RESPONSE MODE: ${normalizedMode.toUpperCase()}.
       };
     }
 
-    // 7. Deterministic Clinical Fallback Engine
+    // 8. Deterministic Clinical Fallback Engine
     return this.generateLocalFallback(userId, userMessage, lang, normalizedMode, ragSources, documentContext);
   }
 
@@ -488,6 +671,7 @@ RESPONSE MODE: ${normalizedMode.toUpperCase()}.
     const extractedValues = db.find('extracted_health_values', v => v.userId === userId);
     const today = new Date().toISOString().split('T')[0];
     const todaySchedules = db.find('medicine_schedules', s => s.userId === userId && s.scheduledDate === today);
+    const appointments = db.find('appointments', a => a.userId === userId);
 
     // Non-healthcare query check
     if (!this.isMedicalQuery(userMessage, documentContext)) {
@@ -522,9 +706,17 @@ RESPONSE MODE: ${normalizedMode.toUpperCase()}.
         }
       }
     }
-
+    // Appointment Query
+    else if (query.includes('appointment') || query.includes('doctor') || query.includes('visit') || query.includes('dr.')) {
+      if (appointments.length > 0) {
+        const next = appointments[0];
+        reply = `You have an appointment booked with **${next.doctorName}** (${next.specialty || 'Consultation'}) on **${next.appointmentDate}** at **${next.appointmentTime || '10:00 AM'}** at ${next.clinicName || 'Clinic'}.`;
+      } else {
+        reply = "You currently have no doctor appointments booked in your profile. You can tell me 'Schedule an appointment with Dr. Sarah Lin' or use the Doctor Appointments tab.";
+      }
+    }
     // Medicine Query
-    if (query.includes('medicine') || query.includes('schedule') || query.includes('prescription') || query.includes('pill') || query.includes('tablet')) {
+    else if (query.includes('medicine') || query.includes('schedule') || query.includes('prescription') || query.includes('pill') || query.includes('tablet')) {
       if (todaySchedules.length > 0) {
         reply = `You have ${todaySchedules.length} dose(s) scheduled for today. For example, ${todaySchedules[0].medicineName} (${todaySchedules[0].dosage}) at ${todaySchedules[0].scheduledTime}. Please take medications as prescribed with meals.`;
       } else if (medicines.length > 0) {
@@ -557,10 +749,9 @@ RESPONSE MODE: ${normalizedMode.toUpperCase()}.
     }
     // General Medical Introduction / Question
     else {
-      reply = `Hello! I am your AI Health Copilot. I can help explain medical terms, summarize your lab reports, review prescription instructions, and provide preventive health guidance. How may I assist your health today?`;
+      reply = `Hello ${user ? user.name : 'there'}! I am your AI Health Copilot. I can help explain medical terms, check your medication schedule, review your lab reports, track your appointments, and provide preventive health guidance. How may I assist your health today?`;
     }
 
-    // Adapt for mode if user asks to explain more or detailed
     if (mode === 'explain') {
       reply += "\n\n• Always take medications with adequate water as directed.\n• Keep laboratory reference ranges in mind when reviewing test results.\n• Routine check-ups help detect subtle health changes early.";
     } else if (mode === 'detailed') {

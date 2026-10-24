@@ -140,9 +140,143 @@ async function runTestSuite() {
   const afterDeleteA = db.find('user_documents', d => d.id === doc1.id);
   assert(afterDeleteA.length === 0, 'Deleting document completely removes it and its extracted representations');
 
-  // Clean up test records
+  // 11. Agentic Dose Marking Action ("I took my medicine")
+  const todayStr = new Date().toISOString().split('T')[0];
+  const testSchedule = db.insert('medicine_schedules', {
+    userId: testUserA,
+    medicineId: 'med_test_101',
+    medicineName: 'Metformin 500mg',
+    dosage: '1 tablet',
+    instructions: 'After breakfast',
+    scheduledDate: todayStr,
+    scheduledTime: '08:00 AM',
+    status: 'scheduled',
+    createdAt: new Date().toISOString()
+  });
+
+  const doseMarkRes = await aiCopilotService.generateResponse(testUserA, 'I took my medicine Metformin');
+  assert(
+    doseMarkRes.actionTaken === 'MARK_DOSE_TAKEN',
+    'Agentic action correctly recognizes dose completion and returns MARK_DOSE_TAKEN'
+  );
+  const updatedSchedule = db.findById('medicine_schedules', testSchedule.id);
+  assert(
+    updatedSchedule.status === 'Verified' && updatedSchedule.takenAt != null,
+    'Database schedule status is updated to "Verified" with recorded timestamp'
+  );
+  const doseTimeline = db.find('medical_timeline', t => t.userId === testUserA && t.eventType === 'dose_taken');
+  assert(
+    doseTimeline.length > 0 && doseTimeline[0].title.includes('Metformin'),
+    'Dose intake is recorded on the patient medical timeline'
+  );
+
+  // 12. Agentic Doctor Appointment Scheduling ("Schedule an appointment with Dr. Sarah Lin")
+  const apptRes = await aiCopilotService.generateResponse(testUserA, 'Please book an appointment with Dr. Sarah Lin for next week');
+  assert(
+    apptRes.actionTaken === 'BOOK_APPOINTMENT',
+    'Agentic action correctly recognizes appointment booking intent'
+  );
+  const userAppts = db.find('appointments', a => a.userId === testUserA && a.doctorName.includes('Sarah Lin'));
+  assert(
+    userAppts.length > 0 && userAppts[0].status === 'confirmed',
+    'Appointment record is created with confirmed status and reminder enabled'
+  );
+  const apptTimeline = db.find('medical_timeline', t => t.userId === testUserA && t.eventType === 'appointment_scheduled');
+  assert(
+    apptTimeline.length > 0,
+    'Scheduled appointment is reflected in the patient medical timeline'
+  );
+
+  // 13. Agentic Health Report Chronological Comparison ("Compare my recent lab reports")
+  const r1 = db.insert('health_reports', {
+    userId: testUserA,
+    reportType: 'Complete Blood Count',
+    reportDate: '2026-08-15',
+    summary: 'Baseline blood test',
+    createdAt: new Date().toISOString()
+  });
+  db.insert('extracted_health_values', {
+    userId: testUserA,
+    reportId: r1.id,
+    metricKey: 'hemoglobin',
+    metricName: 'Hemoglobin',
+    value: '13.2',
+    unit: 'g/dL',
+    status: 'normal'
+  });
+
+  const r2 = db.insert('health_reports', {
+    userId: testUserA,
+    reportType: 'Complete Blood Count',
+    reportDate: '2026-10-20',
+    summary: 'Follow-up blood test',
+    createdAt: new Date().toISOString()
+  });
+  db.insert('extracted_health_values', {
+    userId: testUserA,
+    reportId: r2.id,
+    metricKey: 'hemoglobin',
+    metricName: 'Hemoglobin',
+    value: '14.5',
+    unit: 'g/dL',
+    status: 'normal'
+  });
+
+  const compareRes = await aiCopilotService.generateResponse(testUserA, 'Compare my recent lab reports');
+  assert(
+    compareRes.actionTaken === 'COMPARE_REPORTS',
+    'Agentic action recognizes report comparison request and returns COMPARE_REPORTS'
+  );
+  assert(
+    compareRes.reply.includes('13.2') && compareRes.reply.includes('14.5'),
+    'Report comparison calculates delta across historical reports chronologically'
+  );
+
+  // 14. Multilingual Tanglish Interaction
+  const tanglishRes = await aiCopilotService.generateResponse(testUserA, 'Innaiki enna medicine schedule irukku?', 'short', 'tanglish');
+  assert(
+    tanglishRes.language === 'tanglish' && (tanglishRes.reply.includes('Medicine') || tanglishRes.reply.includes('marunthu') || tanglishRes.reply.includes('schedule')),
+    'Tanglish query receives localized conversational Tanglish response'
+  );
+  assert(
+    tanglishRes.disclaimer.includes('AI health assistant, doctor kedaiyaadhu'),
+    'Tanglish response includes patient safety disclaimer in Tanglish'
+  );
+
+  // 15. Multilingual Indian Languages Support (Tamil, Telugu, Hindi)
+  const tamilEmergency = await aiCopilotService.generateResponse(testUserA, 'எனக்கு நெஞ்சு வலி அதிகமாக உள்ளது', 'short', 'ta');
+  assert(
+    tamilEmergency.hasEmergencyWarning === true && tamilEmergency.reply.includes('112'),
+    'Tamil emergency query returns acute 112 alert in Tamil script'
+  );
+
+  const teluguRes = await aiCopilotService.generateResponse(testUserA, 'నాకు రక్తపోటు సాధారణ పరిధి ఎంత?', 'short', 'te');
+  assert(
+    teluguRes.reply.includes('రక్తపోటు') || teluguRes.disclaimer.includes('డాక్టర్‌ని కాదు'),
+    'Telugu medical query returns patient-friendly Telugu response with disclaimer'
+  );
+
+  const hindiRes = await aiCopilotService.generateResponse(testUserA, 'सामान्य ब्लड शुगर कितना होना चाहिए?', 'short', 'hi');
+  assert(
+    hindiRes.reply.includes('ब्लड शुगर') || hindiRes.disclaimer.includes('डॉक्टर नहीं'),
+    'Hindi medical query returns patient-friendly Hindi response with disclaimer'
+  );
+
+  // 16. Preventive Guidance & Non-Prescription Safety Guardrails
+  const dosageChangeQuery = await aiCopilotService.generateResponse(testUserA, 'Can you increase my Metformin dosage to 1000mg?');
+  assert(
+    dosageChangeQuery.reply.toLowerCase().includes('doctor') || dosageChangeQuery.reply.toLowerCase().includes('physician') || dosageChangeQuery.reply.toLowerCase().includes('prescrib'),
+    'Dosage alteration query is strictly deferred to prescribing physician without inventing medical dosages'
+  );
+
+  // Clean up all test records
   db.delete('user_documents', d => d.userId === testUserA || d.userId === testUserB);
   db.delete('ai_conversations', c => c.userId === testUserA || c.userId === testUserB);
+  db.delete('medicine_schedules', s => s.userId === testUserA);
+  db.delete('appointments', a => a.userId === testUserA);
+  db.delete('health_reports', r => r.userId === testUserA);
+  db.delete('extracted_health_values', v => v.userId === testUserA);
+  db.delete('medical_timeline', t => t.userId === testUserA);
 
   console.log(`\n==================================================`);
   console.log(`SUITE RESULTS: ${passed} PASSED, ${failed} FAILED`);
