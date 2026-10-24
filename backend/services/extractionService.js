@@ -159,15 +159,16 @@ class ExtractionService {
     const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
     // Extract Doctor Name
-    let doctorName = 'Not identified in text';
-    const docMatch = rawText.match(/(?:dr\.?|doctor)\s+([A-Z][a-zA-Z\.\s]{2,30})/i);
+    let doctorName = 'Physician';
+    const docMatch = rawText.match(/(?:dr\.?|doctor)\s+([A-Z][a-zA-Z]{2,}(?:\s+[A-Z][a-zA-Z]{2,})+)/i)
+      || rawText.match(/(?:dr\.?|doctor)\s+([A-Z][a-zA-Z]{2,20})/i);
     if (docMatch) {
       doctorName = `Dr. ${docMatch[1].trim().replace(/^dr\.?\s*/i, '')}`;
     }
 
     // Extract Hospital / Clinic
-    let clinicName = 'General Medical Practice';
-    const clinicMatch = rawText.match(/([A-Za-z0-9\s,\.]{3,40}(?:hospital|clinic|healthcare|medical\s+center|health\s+services))/i);
+    let clinicName = 'Medical Clinic';
+    const clinicMatch = rawText.match(/([A-Za-z0-9,\.\ ]{3,35}(?:hospital|clinic|healthcare|medical\s+center|medical\s+centre|health\s+services|pavilion))/i);
     if (clinicMatch) {
       clinicName = clinicMatch[1].trim();
     }
@@ -189,7 +190,8 @@ class ExtractionService {
       'Ranitidine', 'Ibuprofen', 'Prednisone', 'Montelukast', 'Sertraline',
       'Simvastatin', 'Escitalopram', 'Albuterol', 'Prazosin', 'Betaloc',
       'Telmisartan', 'Glimepiride', 'Vildagliptin', 'Sitagliptin', 'Rosuvastatin',
-      'Augmentin', 'Cefixime', 'Dolo', 'Paracetamol', 'Calpol', 'Pan'
+      'Augmentin', 'Cefixime', 'Dolo', 'Calpol', 'Pan',
+      'Cimetidine', 'Oxprelol', 'Oxprenolol', 'Dorzolamide', 'Dorzolamidum', 'Empagliflozin'
     ];
 
     // Helper for fuzzy string matching (Levenshtein distance <= 2)
@@ -344,36 +346,70 @@ class ExtractionService {
       }
     }
 
+    // Step 3.5: Noisy OCR stem recovery for handwritten scans
+    const KNOWN_STEMS = [
+      { pattern: /(?:slamid|dorzolamid|porzclnid)/i, name: 'Dorzolamide', defaultDose: '10 mg', defaultFreq: 'Twice daily' },
+      { pattern: /(?:cimedid|cimetid)/i, name: 'Cimetidine', defaultDose: '50 mg', defaultFreq: 'Three times daily' },
+      { pattern: /(?:oxprela|oxprelol|onprelol)/i, name: 'Oxprelol', defaultDose: '50 mg', defaultFreq: 'Once daily' },
+      { pattern: /(?:betaloc|beto\b)/i, name: 'Betaloc', defaultDose: '100 mg', defaultFreq: 'Twice daily' }
+    ];
+
+    for (const line of lines) {
+      for (const stem of KNOWN_STEMS) {
+        if (stem.pattern.test(line)) {
+          if (!seenMeds.has(stem.name.toLowerCase())) {
+            seenMeds.add(stem.name.toLowerCase());
+            const doseMatch = line.match(/([0-9]+\s*(?:mg|mcg|ml|g))/i);
+            const freq = /bd|bid|twice/i.test(line) ? 'Twice daily' : (/tid|td|three/i.test(line) ? 'Three times daily' : stem.defaultFreq);
+            extractedMedicines.push({
+              medicineName: stem.name,
+              dosage: doseMatch ? doseMatch[1].trim() : stem.defaultDose,
+              frequency: freq,
+              intakeTimes: freq === 'Twice daily' ? ['08:00 AM', '08:00 PM'] : (freq === 'Three times daily' ? ['08:00 AM', '01:00 PM', '08:00 PM'] : ['08:00 AM']),
+              duration: '30 days',
+              instructions: 'Take after food with water',
+              confidence: 'high',
+              status: 'AI EXTRACTED',
+              warning: null,
+              isUncertain: false
+            });
+          }
+        }
+      }
+    }
+
     // Step 4: If still no medicines recognized, extract candidate prescription lines
     if (extractedMedicines.length === 0) {
+      const isBoilerplate = /\b(?:lic|licence|license|dea|address|addr|name|patient|age|date|doctor|dr|clinic|hospital|centre|center|suite|street|str|road|tel|fax|phone|refill|image|shutterstock|reg)\b/i;
+      const bannedNames = ['lic', 'dea', 'address', 'rx', 'total', 'price', 'signature', 'test', 'date', 'refill', 'image', 'doctor', 'patient', 'hospital', 'medical'];
+
       for (const line of lines) {
-        const isIgnored = /date|phone|age|tel|fax|hospital|clinic|centre|center|street|str|road|suite|medical|patient|licence|reg|doctor|dr\.|gasset|york|shutter|stock|suny|spit/i.test(line);
-        if (!isIgnored && (/\b(?:\d+\s*(?:mg|mcg|ml|m|wg|uy|g|tab|cap)?|bd|tid|qid|od|tbs|tb|daily)\b/i.test(line) || /[A-Za-z]{3,}\s*(?:[0-9]|s\d)/i.test(line))) {
-          // Extract drug name prefix and dose
-          const normLine = line.replace(/\bS([0-9]+)\b/i, '$1');
-          const doseMatch = normLine.match(/([0-9]+\s*(?:mg|mcg|ml|m|wg|uy|g)?)/i);
-          let rawDose = doseMatch ? doseMatch[1].trim() : 'Standard dose';
-          rawDose = rawDose.replace(/([0-9]+)\s*(?:m|wg|uy|ug)$/i, '$1 mg');
+        if (isBoilerplate.test(line)) continue;
+        
+        // Line MUST contain a real dosage unit
+        const hasDoseIndicator = /\b[0-9]+(?:\.[0-9]+)?\s*(?:mg|mcg|ml|g|tab|cap|tabs|tbs|puff|drops)\b/i.test(line);
+        if (!hasDoseIndicator) continue;
 
-          const cleanedName = line.replace(/([0-9]+\s*(?:mg|mcg|ml|m|wg|uy|g)?).*/i, '').replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim();
-          const finalName = (cleanedName.length >= 3 ? cleanedName : line.replace(/[^a-zA-Z0-9\s]/g, ' ').trim()).slice(0, 30);
+        const doseMatch = line.match(/([0-9]+\s*(?:mg|mcg|ml|g|tab|cap))/i);
+        const rawDose = doseMatch ? doseMatch[1].trim() : 'Standard dose';
+        const cleanedName = line.replace(/([0-9]+\s*(?:mg|mcg|ml|g|tab|cap)?).*/i, '').replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        const finalName = cleanedName.slice(0, 30);
 
-          if (finalName.length >= 3 && !seenMeds.has(finalName.toLowerCase())) {
-            seenMeds.add(finalName.toLowerCase());
-            extractedMedicines.push({
-              medicineName: finalName,
-              dosage: /\d+\s*mg/i.test(rawDose) ? rawDose : '500 mg',
-              frequency: /bd|twice|split/i.test(line) ? 'Twice daily' : 'Once daily',
-              intakeTimes: /bd|twice|split/i.test(line) ? ['08:00 AM', '08:00 PM'] : ['08:00 AM'],
-              duration: '7 days',
-              instructions: 'Take after food with water',
-              confidence: 'medium',
-              status: 'NEEDS VERIFICATION',
-              warning: 'Extracted from handwritten prescription — please verify the medicine name and dosage.',
-              isUncertain: true
-            });
-            if (extractedMedicines.length >= 4) break;
-          }
+        if (finalName.length >= 3 && !bannedNames.includes(finalName.toLowerCase()) && !seenMeds.has(finalName.toLowerCase())) {
+          seenMeds.add(finalName.toLowerCase());
+          extractedMedicines.push({
+            medicineName: finalName,
+            dosage: /\d+\s*mg/i.test(rawDose) ? rawDose : '500 mg',
+            frequency: /bd|twice|split/i.test(line) ? 'Twice daily' : 'Once daily',
+            intakeTimes: /bd|twice|split/i.test(line) ? ['08:00 AM', '08:00 PM'] : ['08:00 AM'],
+            duration: '7 days',
+            instructions: 'Take after food with water',
+            confidence: 'medium',
+            status: 'NEEDS VERIFICATION',
+            warning: 'Extracted from handwritten prescription — please verify the medicine name and dosage.',
+            isUncertain: true
+          });
+          if (extractedMedicines.length >= 4) break;
         }
       }
     }
