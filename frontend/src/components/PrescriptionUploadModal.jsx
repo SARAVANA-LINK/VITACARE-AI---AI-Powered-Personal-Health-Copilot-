@@ -188,7 +188,10 @@ export const PrescriptionUploadModal = ({ isOpen, onClose, onSuccess }) => {
 
     try {
       setIsProcessing(true);
-      const res = await api.verifyPrescription(draft);
+      const res = await api.verifyPrescription({
+        ...draft,
+        clientDate: new Date().toISOString().split('T')[0]
+      });
       setVerifiedMedicines(res.medicines || draft.medicines);
       window.dispatchEvent(new CustomEvent('vitacare_record_added'));
       // Move to reminder opt-in step
@@ -203,6 +206,7 @@ export const PrescriptionUploadModal = ({ isOpen, onClose, onSuccess }) => {
 
   const handleFinishReminders = () => {
     handleClose();
+    if (onSuccess) onSuccess();
   };
 
   const handleClose = () => {
@@ -560,13 +564,23 @@ export const PrescriptionUploadModal = ({ isOpen, onClose, onSuccess }) => {
                     </div>
 
                     {/* Detected Medicines Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h4 style={{ fontSize: '1.05rem', color: 'var(--navy)', margin: 0, fontWeight: 600 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                      <h4 style={{ fontSize: '1.05rem', color: 'var(--navy)', margin: 0, fontWeight: 700 }}>
                         Detected Medicines ({draft.medicines.length})
                       </h4>
-                      <button className="btn btn-secondary btn-sm" onClick={handleAddMed} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Plus size={14} /> Add Medicine
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="btn btn-secondary btn-sm" onClick={handleAddMed} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Plus size={14} /> Add Medicine
+                        </button>
+                        <button 
+                          className="btn btn-success btn-sm" 
+                          onClick={handleConfirmVerification} 
+                          disabled={isProcessing || draft.medicines.length === 0}
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
+                        >
+                          <Check size={14} /> Confirm & Save All ({draft.medicines.length})
+                        </button>
+                      </div>
                     </div>
 
                     {/* Extracted Medicines List */}

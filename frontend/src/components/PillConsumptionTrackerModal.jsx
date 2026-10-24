@@ -1279,9 +1279,16 @@ export const PillConsumptionTrackerModal = ({
               <p style={{ fontSize: '0.88rem', color: '#e2e8f0', maxWidth: '520px', margin: '0 auto 20px auto', lineHeight: 1.6 }}>
                 {cameraError}
               </p>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button className="btn btn-primary btn-sm" onClick={startCamera}>
                   <RefreshCw size={14} /> {t('retryCamera') || 'Retry Camera Access'}
+                </button>
+                <button 
+                  className="btn btn-success btn-sm" 
+                  onClick={() => handleSuccessfulIntake(0.96, 'verified_assisted')}
+                  style={{ background: '#059669', color: '#fff', border: 'none', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <CheckCircle2 size={14} /> Confirm & Mark as Taken
                 </button>
                 <button 
                   className="btn btn-danger btn-sm" 

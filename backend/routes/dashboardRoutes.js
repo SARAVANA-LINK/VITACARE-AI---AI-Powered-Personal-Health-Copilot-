@@ -21,13 +21,25 @@ router.get('/overview', authenticateToken, (req, res) => {
     }
     const latestVitals = Object.values(latestVitalsMap);
 
-    // Today's Medicines
-    const today = new Date().toISOString().split('T')[0];
+    // Today's Medicines & Auto-schedule generation for active medicines
+    const today = req.query.date || new Date().toISOString().split('T')[0];
+
+    // Auto-ensure all active medicines for this user have active schedules generated covering today and upcoming days
+    const userActiveMeds = db.find('medicines', m => m.userId === userId && m.isActive);
+    for (const med of userActiveMeds) {
+      const hasDosesTodayOrFuture = db.findOne('medicine_schedules', s => 
+        s.userId === userId && s.medicineId === med.id && s.scheduledDate >= today
+      );
+      if (!hasDosesTodayOrFuture) {
+        scheduleGenerator.generateScheduleForMedicine(med, today);
+      }
+    }
+
     const todaySchedules = db.find('medicine_schedules', s => s.userId === userId && s.scheduledDate === today);
     todaySchedules.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
 
-    // Next Medicine
-    const nextMedicine = scheduleGenerator.getNextMedicine(userId);
+    // Next Medicine (Prioritizes today's pending doses, then next upcoming future dose)
+    const nextMedicine = scheduleGenerator.getNextMedicine(userId, today);
 
     // Adherence
     const adherence = scheduleGenerator.calculateAdherence(userId);

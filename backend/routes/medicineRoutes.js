@@ -103,7 +103,19 @@ router.delete('/:id', authenticateToken, (req, res) => {
 
 // GET /api/medicines/today (Today's medicine schedule & status)
 router.get('/today', authenticateToken, (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = req.query.date || new Date().toISOString().split('T')[0];
+
+  // Auto-backfill active medicines that lack schedules for today or upcoming days
+  const activeMeds = db.find('medicines', m => m.userId === req.user.id && m.isActive);
+  for (const med of activeMeds) {
+    const hasDosesTodayOrFuture = db.findOne('medicine_schedules', s => 
+      s.userId === req.user.id && s.medicineId === med.id && s.scheduledDate >= today
+    );
+    if (!hasDosesTodayOrFuture) {
+      scheduleGenerator.generateScheduleForMedicine(med, today);
+    }
+  }
+
   const schedules = db.find('medicine_schedules', s => s.userId === req.user.id && s.scheduledDate === today);
 
   // Normalize status for display
@@ -128,7 +140,7 @@ router.get('/today', authenticateToken, (req, res) => {
 
   normalizedSchedules.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
 
-  const nextMed = scheduleGenerator.getNextMedicine(req.user.id);
+  const nextMed = scheduleGenerator.getNextMedicine(req.user.id, today);
   const adherence = scheduleGenerator.calculateAdherence(req.user.id);
 
   res.json({

@@ -2,16 +2,26 @@ const db = require('../db');
 
 class ScheduleGenerator {
   /**
-   * Generates daily medication schedule entries for a medicine
-   * Avoids duplicate entries. Default status: "Pending"
+   * Generates daily medication schedule entries for a medicine.
+   * For active medications, always anchors to today (or future start date)
+   * so upcoming doses populate immediately in today's and future schedules.
    */
-  generateScheduleForMedicine(medicine) {
+  generateScheduleForMedicine(medicine, anchorDate = null) {
     const userId = medicine.userId;
     const medicineId = medicine.id;
-    const startDateStr = medicine.startDate || new Date().toISOString().split('T')[0];
+    const today = anchorDate || new Date().toISOString().split('T')[0];
     
-    // Parse duration (default 7 days if not parsed)
-    let daysCount = 7;
+    // Determine the base date:
+    // If medicine.startDate is in the future, start from that future date.
+    // If medicine.startDate is in the past (e.g. from an old scanned prescription date),
+    // anchor it to TODAY so the patient immediately has active doses to track and take!
+    let startDateStr = today;
+    if (medicine.startDate && medicine.startDate > today) {
+      startDateStr = medicine.startDate;
+    }
+
+    // Parse duration (default 30 days of coverage if not parsed, up to 90 days)
+    let daysCount = 30;
     if (medicine.duration) {
       const match = medicine.duration.match(/([0-9]+)\s*(?:days?|d)/i);
       if (match) daysCount = Math.min(parseInt(match[1], 10), 90);
@@ -47,11 +57,11 @@ class ScheduleGenerator {
             userId: userId,
             medicineId: medicineId,
             medicineName: medicine.name,
-            dosage: medicine.dosage,
-            instructions: medicine.instructions,
+            dosage: medicine.dosage || medicine.strength || 'Standard dose',
+            instructions: medicine.instructions || 'Take with water after meals',
             scheduledDate: dateString,
             scheduledTime: timeStr,
-            status: 'Pending', // Requirement 2: Default status Pending until confirmed
+            status: 'Pending',
             warningAttemptsCount: 0,
             escalatedToGuardian: false,
             takenAt: null,
@@ -140,17 +150,42 @@ class ScheduleGenerator {
   }
 
   /**
-   * Retrieves today's next upcoming or pending medicine
+   * Retrieves the next upcoming or pending medication dose for the patient.
+   * Checks today first (sorted by scheduled time), then looks for the next upcoming dose in future.
    */
-  getNextMedicine(userId) {
-    const today = new Date().toISOString().split('T')[0];
-    const todaySchedules = db.find('medicine_schedules', s => 
-      s.userId === userId && s.scheduledDate === today && (s.status === 'Pending' || s.status === 'upcoming' || s.status === 'due_now')
+  getNextMedicine(userId, anchorDate = null) {
+    const today = anchorDate || new Date().toISOString().split('T')[0];
+    
+    // 1. First look for pending or due doses TODAY (sorted by scheduled time)
+    const todayPending = db.find('medicine_schedules', s => 
+      s.userId === userId && 
+      s.scheduledDate === today && 
+      (s.status === 'Pending' || s.status === 'upcoming' || s.status === 'due_now' || s.status === 'TRACKING_FAILED' || s.status === 'Scheduled')
     );
 
-    if (todaySchedules.length === 0) return null;
+    if (todayPending.length > 0) {
+      todayPending.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+      return todayPending[0];
+    }
 
-    return todaySchedules[0];
+    // 2. If no pending doses today, look for the next upcoming dose in the future
+    const futurePending = db.find('medicine_schedules', s => 
+      s.userId === userId && 
+      s.scheduledDate > today && 
+      (s.status === 'Pending' || s.status === 'upcoming' || s.status === 'due_now' || s.status === 'Scheduled')
+    );
+
+    if (futurePending.length > 0) {
+      futurePending.sort((a, b) => {
+        if (a.scheduledDate === b.scheduledDate) {
+          return a.scheduledTime.localeCompare(b.scheduledTime);
+        }
+        return a.scheduledDate.localeCompare(b.scheduledDate);
+      });
+      return futurePending[0];
+    }
+
+    return null;
   }
 }
 

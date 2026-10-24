@@ -137,27 +137,34 @@ router.post('/verify', authenticateToken, (req, res) => {
     const createdMedicines = [];
     const createdSchedules = [];
 
+    const today = new Date().toISOString().split('T')[0];
+    const clientDate = req.body.clientDate || req.query.date || today;
+
     for (const med of medicines) {
+      // The clinical regimen for active tracking starts TODAY (or future date if explicitly scheduled)
+      const activeStartDate = (med.startDate && med.startDate >= today) ? med.startDate : today;
+
       const newMed = db.insert('medicines', {
         userId: req.user.id,
         prescriptionId: savedRx.id,
-        name: med.medicineName,
+        name: med.medicineName || med.name,
         strength: med.strength || med.dosage || 'Standard dose',
         dose: med.dose || '1 tablet',
         dosage: med.dosage || med.strength || 'Standard dose',
         frequency: med.frequency || 'Once daily',
         mealRelation: med.mealRelation || 'After food',
         intakeTimes: Array.isArray(med.intakeTimes) && med.intakeTimes.length > 0 ? med.intakeTimes : ['08:00 AM'],
-        duration: med.duration || '7 days',
-        instructions: med.instructions || 'After meals',
-        startDate: prescriptionDate || new Date().toISOString().split('T')[0],
+        duration: med.duration || '30 days',
+        instructions: med.instructions || 'After meals with water',
+        startDate: activeStartDate,
+        doctorPrescriptionDate: prescriptionDate || today,
         isActive: true
       });
 
       createdMedicines.push(newMed);
 
-      // Automatically generate daily schedules for this medicine
-      const schedules = scheduleGenerator.generateScheduleForMedicine(newMed);
+      // Automatically generate daily schedules for this medicine starting from today
+      const schedules = scheduleGenerator.generateScheduleForMedicine(newMed, clientDate);
       createdSchedules.push(...schedules);
     }
 
