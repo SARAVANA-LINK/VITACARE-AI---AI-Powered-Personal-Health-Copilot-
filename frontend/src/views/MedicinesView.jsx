@@ -16,14 +16,19 @@ import {
   RefreshCw, 
   ChevronRight,
   UserCheck,
-  Camera
+  Camera,
+  Volume2
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { useTranslation } from '../i18n/LanguageContext';
+import { useAccessibility } from '../context/AccessibilityContext';
 import { PillConsumptionTrackerModal } from '../components/PillConsumptionTrackerModal';
 
 export const MedicinesView = ({ onAddPrescription, onOpenReminder }) => {
   const { t } = useTranslation();
+  const { speak } = useAccessibility();
+  const [selectedTab, setSelectedTab] = useState('all');
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [medicines, setMedicines] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [alertHistory, setAlertHistory] = useState([]);
@@ -294,105 +299,303 @@ export const MedicinesView = ({ onAddPrescription, onOpenReminder }) => {
         </div>
       )}
 
-      {/* TODAY'S MEDICATION DOSE SCHEDULE */}
-      <div className="card" style={{ marginBottom: '28px' }}>
-        <div className="card-header">
-          <h3 className="card-title">
-            <Clock size={20} color="var(--primary)" />
-            {t('todaysDoses') || "Today's Dose Schedule"}
-          </h3>
-          <span className="badge badge-blue">
-            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
-          </span>
+      {/* 4 FILTER TABS & TODAY'S SCHEDULE */}
+      {(() => {
+        const upcomingDoses = todaySchedules.filter(s => {
+          const st = (s.status || '').toLowerCase();
+          return st === 'pending' || st === 'scheduled' || st === 'due_now';
+        });
+        const completedDoses = todaySchedules.filter(s => {
+          const st = (s.status || '').toLowerCase();
+          return st === 'verified' || st === 'taken';
+        });
+        const missedDoses = todaySchedules.filter(s => {
+          const st = (s.status || '').toLowerCase();
+          return st === 'missed' || st === 'skipped' || s.warningCallsSent > 0;
+        });
+        const unconfirmedDoses = todaySchedules.filter(s => {
+          const st = (s.status || '').toLowerCase();
+          return st === 'tracking_failed' || st === 'patient_refused' || st === 'unconfirmed';
+        });
+
+        let displayedSchedules = todaySchedules;
+        if (selectedTab === 'upcoming') displayedSchedules = upcomingDoses;
+        else if (selectedTab === 'completed') displayedSchedules = completedDoses;
+        else if (selectedTab === 'missed') displayedSchedules = missedDoses;
+        else if (selectedTab === 'unconfirmed') displayedSchedules = unconfirmedDoses;
+
+        return (
+          <div className="card" style={{ marginBottom: '28px' }}>
+            <div className="card-header" style={{ flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
+              <div>
+                <h3 className="card-title" style={{ fontSize: '1.35rem' }}>
+                  <Clock size={22} color="var(--primary)" />
+                  {t('todaysDoses') || "Today's Medicine Schedule"}
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                  {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+
+              {/* 4 Accessible Tabs */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${selectedTab === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setSelectedTab('all')}
+                  style={{ minHeight: '40px', fontWeight: 700 }}
+                >
+                  {t('all') || 'All'} ({todaySchedules.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${selectedTab === 'upcoming' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setSelectedTab('upcoming')}
+                  style={{ minHeight: '40px', fontWeight: 700 }}
+                >
+                  ⏳ {t('upcoming') || 'Upcoming'} ({upcomingDoses.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${selectedTab === 'completed' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setSelectedTab('completed')}
+                  style={{ minHeight: '40px', fontWeight: 700 }}
+                >
+                  ✅ {t('completed') || 'Completed'} ({completedDoses.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${selectedTab === 'missed' ? 'btn-danger' : 'btn-secondary'}`}
+                  onClick={() => setSelectedTab('missed')}
+                  style={{ minHeight: '40px', fontWeight: 700 }}
+                >
+                  ❌ {t('missed') || 'Missed'} ({missedDoses.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${selectedTab === 'unconfirmed' ? 'btn-warning' : 'btn-secondary'}`}
+                  onClick={() => setSelectedTab('unconfirmed')}
+                  style={{ minHeight: '40px', fontWeight: 700 }}
+                >
+                  ⚠️ {t('statusUnconfirmed') || 'Unconfirmed'} ({unconfirmedDoses.length})
+                </button>
+              </div>
+            </div>
+
+            {/* Clinical Safety Banner */}
+            <div style={{
+              margin: '0 20px 16px 20px',
+              padding: '10px 16px',
+              background: '#eff6ff',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid #bfdbfe',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              fontSize: '0.9rem',
+              color: '#1e40af'
+            }}>
+              <AlertCircle size={18} style={{ flexShrink: 0 }} />
+              <span>
+                <strong>{t('safetyReminder') || 'Safety Reminder'}:</strong> {t('safetyReminderText') || "Follow your doctor's exact instructions. If you miss a dose, take it when remembered unless it is close to your next scheduled time. Never double a dose."}
+              </span>
+            </div>
+
+            {displayedSchedules.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                <CheckCircle size={40} style={{ margin: '0 auto 10px auto', color: 'var(--teal)' }} />
+                <h4 style={{ fontSize: '1.2rem', color: 'var(--navy)', marginBottom: '4px' }}>
+                  {t('noMedicationsCategory') || 'No medications in this category'}
+                </h4>
+                <p style={{ fontSize: '0.95rem' }}>
+                  {t('selectAnotherTab') || 'Select another tab above or view your active medicines catalog.'}
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '0 20px 20px 20px' }}>
+                {displayedSchedules.map(item => {
+                  const rawStatus = (item.status || 'Pending').toLowerCase();
+                  const isVerified = rawStatus === 'verified' || rawStatus === 'taken';
+                  const isMissed = rawStatus === 'missed' || rawStatus === 'skipped';
+                  const isUnconfirmed = rawStatus === 'tracking_failed' || rawStatus === 'patient_refused' || rawStatus === 'unconfirmed';
+                  const attempts = item.warningCallsSent || 0;
+
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        padding: '20px 24px',
+                        borderRadius: 'var(--radius-xl)',
+                        border: `2px solid ${isVerified ? 'var(--status-green-border)' : isMissed ? 'var(--status-red-border)' : isUnconfirmed ? 'var(--status-orange-border)' : 'var(--border-light)'}`,
+                        background: isVerified ? 'var(--status-green-bg)' : isMissed ? 'var(--status-red-bg)' : isUnconfirmed ? 'var(--status-orange-bg)' : '#ffffff',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '16px',
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.03)'
+                      }}
+                    >
+                      <div style={{ maxWidth: '600px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>
+                            ⏰ {item.scheduledTime}
+                          </span>
+                          {isVerified ? (
+                            <span className="badge badge-green" style={{ fontSize: '0.8rem', padding: '4px 10px' }}>
+                              ✅ {t('statusVerified') || 'TAKEN - VERIFIED'}
+                            </span>
+                          ) : isMissed ? (
+                            <span className="badge badge-red" style={{ fontSize: '0.8rem', padding: '4px 10px' }}>
+                              ❌ {t('statusMissed') || 'MISSED DOSE'}
+                            </span>
+                          ) : isUnconfirmed ? (
+                            <span className="badge badge-orange" style={{ fontSize: '0.8rem', padding: '4px 10px' }}>
+                              ⚠️ {t('statusUnconfirmed') || 'UNCONFIRMED'}
+                            </span>
+                          ) : (
+                            <span className="badge badge-blue" style={{ fontSize: '0.8rem', padding: '4px 10px' }}>
+                              ⏳ {t('statusPending') || 'PENDING INTAKE'}
+                            </span>
+                          )}
+                          {attempts > 0 && (
+                            <span className="badge badge-red" style={{ fontSize: '0.78rem' }}>
+                              ⚠️ {t('reminderCalls') || 'Reminder Calls'}: {attempts}/2
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => speak(`${item.medicineName}, ${item.dosage}. Scheduled for ${item.scheduledTime}. Instructions: ${item.instructions || 'Take as prescribed.'}`)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ minHeight: '34px', padding: '2px 8px', fontSize: '0.8rem', gap: '4px' }}
+                            title="Read medicine details aloud"
+                          >
+                            <Volume2 size={14} color="var(--primary)" /> {t('readAloud') || 'Read Aloud'}
+                          </button>
+                        </div>
+
+                        <h4 style={{ fontSize: '1.35rem', color: 'var(--navy)', margin: '0 0 6px 0', fontWeight: 800 }}>
+                          {item.medicineName}
+                        </h4>
+
+                        <div style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                          {t('dosage') || 'Prescribed Dose'}: <strong>{item.dosage}</strong>
+                        </div>
+
+                        <div style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                          {t('instructions') || 'Instructions'}: <strong>{item.instructions || t('asPrescribed') || 'Take with water after food'}</strong>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {isVerified ? (
+                          <span className="badge badge-green" style={{ padding: '10px 16px', fontSize: '0.95rem', fontWeight: 700 }}>
+                            <CheckCircle size={18} /> {t('verifiedInRecords') || 'Verified in Records'}
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => {
+                                setConfirmDialog({
+                                  title: `Skip ${item.medicineName}?`,
+                                  message: 'Are you sure you wish to record this dose as skipped? Remember: never take a double dose later to compensate.',
+                                  confirmLabel: t('confirmSkip') || 'Confirm Skip',
+                                  onConfirm: () => {
+                                    handleSkip(item.id);
+                                    setConfirmDialog(null);
+                                  }
+                                });
+                              }}
+                              style={{ minHeight: '48px', fontWeight: 700 }}
+                            >
+                              {t('skip') || 'Skip Dose'}
+                            </button>
+
+                            {/* Warning Call Button */}
+                            <button
+                              className={`btn ${attempts >= 2 ? 'btn-danger' : 'btn-secondary'}`}
+                              onClick={() => handleTriggerWarningCall(item.id, item.medicineName)}
+                              disabled={actionLoadingId === item.id}
+                              style={{ minHeight: '48px', fontWeight: 700, gap: '6px' }}
+                            >
+                              <PhoneCall size={16} />
+                              {attempts === 0 ? (t('warningCall1') || 'Warning Call #1') :
+                               attempts === 1 ? (t('warningCall2') || 'Warning Call #2') : (t('escalateGuardianBtn') || '🚨 Escalate Guardian')}
+                            </button>
+
+                            {/* Camera Verification Button */}
+                            <button
+                              className="btn btn-success btn-lg"
+                              onClick={() => setTrackingTargetSchedule(item)}
+                              style={{ fontWeight: 800, gap: '8px' }}
+                            >
+                              <Camera size={18} /> {t('actionMarkTaken') || 'Mark as Taken'}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Confirmation Modal */}
+      {confirmDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(20, 33, 61, 0.7)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 1100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 'var(--radius-xl)',
+            padding: '28px',
+            maxWidth: '500px',
+            width: '100%',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+            border: '2px solid var(--border-light)'
+          }}>
+            <h3 style={{ fontSize: '1.35rem', color: 'var(--navy)', marginBottom: '10px' }}>
+              {confirmDialog.title}
+            </h3>
+            <p style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '24px' }}>
+              {confirmDialog.message}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setConfirmDialog(null)}
+                style={{ minHeight: '48px', fontWeight: 700 }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={confirmDialog.onConfirm}
+                style={{ minHeight: '48px', fontWeight: 800 }}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
         </div>
-
-        {todaySchedules.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
-            <p>{t('noDosesTodayMsg') || 'No medication doses scheduled for today.'}</p>
-          </div>
-        ) : (
-          <div>
-            {todaySchedules.map(item => {
-              const rawStatus = (item.status || 'Pending').toLowerCase();
-              const isVerified = rawStatus === 'verified' || rawStatus === 'taken';
-              const isPending = rawStatus === 'pending' || rawStatus === 'scheduled';
-              const isMissed = rawStatus === 'missed' || rawStatus === 'skipped';
-              const attempts = item.warningCallsSent || 0;
-
-              return (
-                <div key={item.id} className={`med-schedule-item ${isVerified ? 'taken' : isMissed ? 'skipped' : 'pending'}`}>
-                  <div className="med-schedule-time">
-                    {item.scheduledTime}
-                  </div>
-                  
-                  <div className="med-schedule-info">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="med-schedule-name">{item.medicineName}</span>
-                      {isVerified ? (
-                        <span className="badge badge-green" style={{ fontSize: '0.75rem' }}>
-                          ✅ {t('statusVerified') || 'VERIFIED'}
-                        </span>
-                      ) : (
-                        <span className="badge badge-orange" style={{ fontSize: '0.75rem' }}>
-                          ⏳ {t('statusPending') || 'PENDING'}
-                        </span>
-                      )}
-                      {attempts > 0 && (
-                        <span className={`badge ${attempts >= 2 ? 'badge-red' : 'badge-orange'}`} style={{ fontSize: '0.72rem' }}>
-                          ⚠️ {t('warningCall') || 'Warning Calls'}: {attempts}/2
-                        </span>
-                      )}
-                    </div>
-                    <div className="med-schedule-dose">
-                      {item.dosage} • {item.instructions || (t('takeWithWater') || 'Take with water')}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {isVerified ? (
-                      <span className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px 12px' }}>
-                        <CheckCircle size={14} /> {t('intakeConfirmed') || 'Intake Confirmed'}
-                      </span>
-                    ) : (
-                      <>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => handleSkip(item.id)}
-                          title={t('skip') || 'Skip dose'}
-                        >
-                          {t('skip') || 'Skip'}
-                        </button>
-
-                        {/* WARNING CALL / GUARDIAN ESCALATION BUTTON */}
-                        <button
-                          className={`btn btn-sm ${attempts >= 2 ? 'btn-danger' : 'btn-secondary'}`}
-                          onClick={() => handleTriggerWarningCall(item.id, item.medicineName)}
-                          disabled={actionLoadingId === item.id}
-                          title={attempts >= 2 ? (t('escalateGuardianBtn') || "Escalate alert to registered guardian") : `${t('warningCall') || 'Dispatch warning call'} #${attempts + 1}`}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                        >
-                          <PhoneCall size={13} />
-                          {attempts === 0 ? (t('warningCall1') || 'Warning Call #1') :
-                           attempts === 1 ? (t('warningCall2') || 'Warning Call #2') : (t('escalateGuardianBtn') || '🚨 Escalate Guardian')}
-                        </button>
-
-                        {/* AUTOMATIC CAMERA TRACKING ONLY */}
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={() => setTrackingTargetSchedule(item)}
-                          style={{ fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                        >
-                          <Camera size={14} /> {t('trackPillIntake') || 'Track Intake (Camera)'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* ACTIVE MEDICATIONS CATALOG */}
       <div className="card">
@@ -544,6 +747,21 @@ export const MedicinesView = ({ onAddPrescription, onOpenReminder }) => {
         schedule={trackingTargetSchedule}
         onClose={() => setTrackingTargetSchedule(null)}
         onVerified={(res) => {
+          if (trackingTargetSchedule) {
+            const targetId = trackingTargetSchedule.id;
+            setTodaySchedules(prev => prev.map(s => {
+              if (s.id === targetId || s.scheduleId === targetId || (s.scheduleId && trackingTargetSchedule.scheduleId && s.scheduleId === trackingTargetSchedule.scheduleId && s.scheduledTime === trackingTargetSchedule.scheduledTime)) {
+                return {
+                  ...s,
+                  status: 'Verified',
+                  rawStatus: 'VERIFIED',
+                  taken: true,
+                  isVerified: true
+                };
+              }
+              return s;
+            }));
+          }
           fetchData();
           setCallAlertBanner({
             type: 'verified',

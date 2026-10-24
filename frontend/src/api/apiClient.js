@@ -1,5 +1,5 @@
 const BASE_URL = (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000')
-  ? 'http://localhost:5000/api'
+  ? 'http://localhost:8000/api'
   : (import.meta.env.VITE_API_URL || '/api');
 
 class ApiClient {
@@ -66,6 +66,30 @@ class ApiClient {
     return this.request('/auth/demo-login', { method: 'POST' });
   }
 
+  sendOtp(phoneNumber) {
+    return this.request('/auth/send-otp', { method: 'POST', body: JSON.stringify({ phoneNumber }) });
+  }
+
+  verifyOtp(phoneNumber, otp, name = '') {
+    return this.request('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ phoneNumber, otp, name }) });
+  }
+
+  getConsent() {
+    return this.request('/auth/consent');
+  }
+
+  updateConsent(consentData) {
+    return this.request('/auth/consent', { method: 'PUT', body: JSON.stringify(consentData) });
+  }
+
+  exportData() {
+    return this.request('/auth/export-data');
+  }
+
+  deleteAccount() {
+    return this.request('/auth/account', { method: 'DELETE' });
+  }
+
   getMe() {
     return this.request('/auth/me');
   }
@@ -75,7 +99,9 @@ class ApiClient {
   }
 
   updateLanguage(language) {
-    return this.request('/auth/language', { method: 'PUT', body: JSON.stringify({ language }) });
+    return this.request('/auth/language', { method: 'PUT', body: JSON.stringify({ language, preferredLanguage: language }) })
+      .catch(() => this.request('/users/language', { method: 'PUT', body: JSON.stringify({ language, preferredLanguage: language }) }))
+      .catch(() => this.request('/users/profile', { method: 'PUT', body: JSON.stringify({ preferredLanguage: language }) }));
   }
 
   // Dashboard
@@ -334,11 +360,11 @@ class ApiClient {
   }
 
   // AI Copilot
-  askAiCopilot(message, mode = 'simple', language = null) {
+  askAiCopilot(message, mode = 'simple', language = null, history = null) {
     const lang = language || localStorage.getItem('vitacare_lang') || 'en';
     return this.request('/ai/chat', { 
       method: 'POST', 
-      body: JSON.stringify({ message, mode, preferred_language: lang, language: lang }) 
+      body: JSON.stringify({ message, mode, preferred_language: lang, language: lang, history }) 
     });
   }
 
@@ -348,6 +374,131 @@ class ApiClient {
 
   clearAiHistory() {
     return this.request('/ai/history', { method: 'DELETE' });
+  }
+
+  // AI Multi-Conversation Threads
+  getAiThreads() {
+    return this.request('/ai/threads');
+  }
+
+  createAiThread(title = 'New Health Conversation') {
+    return this.request('/ai/threads', { method: 'POST', body: JSON.stringify({ title }) });
+  }
+
+  updateAiThread(id, data) {
+    return this.request(`/ai/threads/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  deleteAiThread(id) {
+    return this.request(`/ai/threads/${id}`, { method: 'DELETE' });
+  }
+
+  getAiThreadMessages(id) {
+    return this.request(`/ai/threads/${id}/messages`);
+  }
+
+  askAiChat(data) {
+    const lang = data.language || localStorage.getItem('vitacare_lang') || 'en';
+    return this.request('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ ...data, preferred_language: lang, language: lang })
+    });
+  }
+
+  askAi(message, mode = 'simple', language = null) {
+    const lang = language || localStorage.getItem('vitacare_lang') || 'en';
+    return this.askAiChat({ message, mode, language: lang });
+  }
+
+  analyzeDocumentInChat(formData) {
+    return this.request('/ai/analyze-document', {
+      method: 'POST',
+      body: formData
+    });
+  }
+
+  getUserChatDocuments() {
+    return this.request('/ai/user-documents');
+  }
+
+  // Admin AI Knowledge Base & RAG Management
+  getAdminKnowledge() {
+    return this.request('/admin/ai/knowledge');
+  }
+
+  createAdminKnowledge(data) {
+    return this.request('/admin/ai/knowledge', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  deleteAdminKnowledge(id) {
+    return this.request(`/admin/ai/knowledge/${id}`, { method: 'DELETE' });
+  }
+
+  reindexAdminKnowledge() {
+    return this.request('/admin/ai/knowledge/reindex', { method: 'POST' });
+  }
+
+  getAdminAiConfig() {
+    return this.request('/admin/ai/config');
+  }
+
+  getAdminAiHealth() {
+    return this.request('/admin/ai/health');
+  }
+
+  // Appointments
+  getAppointments() {
+    return this.request('/appointments');
+  }
+
+  createAppointment(data) {
+    return this.request('/appointments', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  updateAppointment(id, data) {
+    return this.request(`/appointments/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  deleteAppointment(id) {
+    return this.request(`/appointments/${id}`, { method: 'DELETE' });
+  }
+
+  // Symptom Guidance
+  assessSymptoms(data) {
+    return this.request('/symptoms/assess', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  getSymptomHistory() {
+    return this.request('/symptoms/history');
+  }
+
+  // Resources (Dictionary, Library, Hospitals)
+  getMedicalDictionary(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return this.request(`/resources/dictionary${query ? `?${query}` : ''}`);
+  }
+
+  getHealthArticles(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return this.request(`/resources/articles${query ? `?${query}` : ''}`);
+  }
+
+  getHospitals(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return this.request(`/resources/hospitals${query ? `?${query}` : ''}`);
+  }
+
+  // Wellness & Nutrition
+  getWellnessSummary() {
+    return this.request('/wellness/summary');
+  }
+
+  logWater(data) {
+    return this.request('/wellness/water', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  logActivity(data) {
+    return this.request('/wellness/activity', { method: 'POST', body: JSON.stringify(data) });
   }
 
   // Demo

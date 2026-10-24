@@ -17,7 +17,7 @@ import {
 import { api } from '../api/apiClient';
 import { useTranslation } from '../i18n/LanguageContext';
 
-export const AlertHistoryView = () => {
+export const AlertHistoryView = ({ onOpenSos }) => {
   const { t } = useTranslation();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,22 +62,84 @@ export const AlertHistoryView = () => {
   return (
     <div className="view-container">
       {/* Page Header */}
-      <div className="view-header" style={{ marginBottom: '24px' }}>
+      <div className="view-header" style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1 className="view-title">
-              {t('alertHistoryTitle')}
+            <h1 className="view-title" style={{ fontSize: '1.875rem', fontWeight: 800, color: 'var(--navy)' }}>
+              {t('alertHistoryTitle') || 'Emergency Help & Alert History'}
             </h1>
-            <span className="badge badge-blue" style={{ fontWeight: 700 }}>{t('auditTrailBadge')}</span>
+            <span className="badge badge-blue" style={{ fontWeight: 700 }}>{t('auditTrailBadge') || 'Live Log'}</span>
           </div>
-          <p className="view-subtitle">
-            {t('alertHistorySubtitle')}
+          <p className="view-subtitle" style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>
+            {t('alertHistorySubtitle') || 'Record of automated reminders, family alerts, and emergency calls dispatched by VitaCare.'}
           </p>
         </div>
 
-        <button className="btn btn-secondary btn-sm" onClick={fetchHistory} title={t('refresh')}>
-          <RefreshCw size={14} /> {t('refresh')}
+        <button className="btn btn-secondary" onClick={fetchHistory} title={t('refresh')} style={{ minHeight: '48px', padding: '10px 18px', fontSize: '1rem' }}>
+          <RefreshCw size={16} /> {t('refresh') || 'Refresh'}
         </button>
+      </div>
+
+      {/* Immediate Emergency Help Action Banner */}
+      <div 
+        className="card"
+        style={{
+          background: '#fef2f2',
+          border: '2px solid #fecaca',
+          padding: '22px 26px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderRadius: '18px',
+          flexWrap: 'wrap',
+          gap: '16px'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: '280px' }}>
+          <div style={{
+            width: '54px',
+            height: '54px',
+            borderRadius: '50%',
+            background: 'var(--status-red)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            boxShadow: '0 0 16px rgba(220, 38, 38, 0.4)',
+            flexShrink: 0
+          }}>
+            <ShieldAlert size={28} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#991b1b', marginBottom: '4px' }}>
+              Immediate Emergency Help
+            </div>
+            <p style={{ fontSize: '1rem', color: '#7f1d1d', margin: 0, lineHeight: 1.4 }}>
+              Need urgent medical assistance? Triggering the SOS button alerts your registered caregivers and transmits your verified emergency profile.
+            </p>
+          </div>
+        </div>
+
+        {onOpenSos && (
+          <button 
+            className="btn btn-danger btn-lg" 
+            onClick={onOpenSos}
+            style={{ 
+              minHeight: '52px', 
+              padding: '12px 28px', 
+              fontSize: '1.05rem', 
+              fontWeight: 800, 
+              boxShadow: '0 4px 14px rgba(220, 38, 38, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}
+          >
+            <ShieldAlert size={22} />
+            <span>TRIGGER EMERGENCY SOS</span>
+          </button>
+        )}
       </div>
 
       {/* KPI Cards */}

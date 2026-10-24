@@ -727,6 +727,9 @@ export const PillConsumptionTrackerModal = ({
         confidenceScore: finalConfidence || 0.96,
         verificationSource: 'camera_vision_pipeline',
         handUsed: handSide || activeHand || 'right',
+        scheduleId: schedule.scheduleId || schedule.id,
+        scheduledTime: schedule.scheduledTime || schedule.time,
+        medicineName: schedule.medicineName || schedule.name,
         milestones: [
           'face_aligned', 
           'hand_detected', 

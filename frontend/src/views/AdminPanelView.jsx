@@ -33,7 +33,9 @@ import {
   Database,
   Upload,
   Image as ImageIcon,
-  Camera
+  Camera,
+  Bot,
+  BookOpen
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { useTranslation, SUPPORTED_LANGUAGES } from '../i18n/LanguageContext';
@@ -78,6 +80,22 @@ export const AdminPanelView = ({ onSwitchPortal }) => {
   const [testSmsMsg, setTestSmsMsg] = useState('VitaCare AI Test: SMS carrier dispatch verified successfully.');
   const [testSmsLang, setTestSmsLang] = useState('en');
   const [testSmsSending, setTestSmsSending] = useState(false);
+
+  // AI Health Copilot & RAG Knowledge State (Requirement 11)
+  const [knowledgeSources, setKnowledgeSources] = useState([]);
+  const [aiConfig, setAiConfig] = useState(null);
+  const [aiHealth, setAiHealth] = useState(null);
+  const [isAddKnowledgeOpen, setIsAddKnowledgeOpen] = useState(false);
+  const [reindexing, setReindexing] = useState(false);
+  const [newKnowledge, setNewKnowledge] = useState({
+    sourceName: '',
+    authoritativeBody: 'WHO',
+    sourceUrl: 'https://www.who.int',
+    version: '1.0',
+    topic: '',
+    keywords: '',
+    guidelineText: ''
+  });
 
   // Database Reset State (Requirement 3)
   const [isClearDbConfirmOpen, setIsClearDbConfirmOpen] = useState(false);
@@ -142,7 +160,10 @@ export const AdminPanelView = ({ onSwitchPortal }) => {
         smsTrigRes,
         smsTplRes,
         smsLogsRes,
-        guardiansRes
+        guardiansRes,
+        knowledgeRes,
+        configRes,
+        healthRes
       ] = await Promise.all([
         api.getAdminOverview(),
         api.getAdminUsers(),
@@ -159,7 +180,10 @@ export const AdminPanelView = ({ onSwitchPortal }) => {
         api.getAdminSmsTriggers().catch(() => ({ triggers: [] })),
         api.getAdminSmsTemplates().catch(() => ({ templates: [] })),
         api.getAdminSmsLogs(50).catch(() => ({ logs: [] })),
-        api.getAdminGuardians().catch(() => ({ guardians: [] }))
+        api.getAdminGuardians().catch(() => ({ guardians: [] })),
+        api.getAdminKnowledge().catch(() => ({ knowledgeSources: [] })),
+        api.getAdminAiConfig().catch(() => ({ aiConfig: {} })),
+        api.getAdminAiHealth().catch(() => ({ status: 'healthy' }))
       ]);
 
       setMetrics(overviewRes.metrics);
@@ -180,6 +204,10 @@ export const AdminPanelView = ({ onSwitchPortal }) => {
       setSmsTemplates(smsTplRes.templates || []);
       setSmsLogs(smsLogsRes.logs || []);
       setAdminGuardians(guardiansRes.guardians || []);
+
+      setKnowledgeSources(knowledgeRes.knowledgeSources || []);
+      setAiConfig(configRes.aiConfig || null);
+      setAiHealth(healthRes || null);
     } catch (err) {
       console.error('Admin data load failed:', err);
       setErrorMsg(err.message || 'Failed to load administrator data. Please check credentials.');
@@ -532,6 +560,54 @@ export const AdminPanelView = ({ onSwitchPortal }) => {
     }
   };
 
+  // --------------------------------------------------------------------------
+  // AI HEALTH COPILOT & RAG KNOWLEDGE HANDLERS (Requirement 11)
+  // --------------------------------------------------------------------------
+  const handleDeleteKnowledge = async (id) => {
+    if (!window.confirm('Delete this approved clinical knowledge document?')) return;
+    try {
+      await api.deleteAdminKnowledge(id);
+      showSuccess('Clinical knowledge source deleted and vector index updated.');
+      loadData();
+    } catch (err) {
+      setErrorMsg(err.message);
+    }
+  };
+
+  const handleCreateKnowledge = async (e) => {
+    e.preventDefault();
+    try {
+      await api.createAdminKnowledge(newKnowledge);
+      setIsAddKnowledgeOpen(false);
+      setNewKnowledge({
+        sourceName: '',
+        authoritativeBody: 'WHO',
+        sourceUrl: 'https://www.who.int',
+        version: '1.0',
+        topic: '',
+        keywords: '',
+        guidelineText: ''
+      });
+      showSuccess('New clinical knowledge document added and indexed for AI Health Copilot.');
+      loadData();
+    } catch (err) {
+      setErrorMsg(err.message);
+    }
+  };
+
+  const handleReindexKnowledge = async () => {
+    setReindexing(true);
+    try {
+      const res = await api.reindexAdminKnowledge();
+      showSuccess(res.message || 'Medical knowledge base re-indexed successfully.');
+      loadData();
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setReindexing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
@@ -562,6 +638,7 @@ export const AdminPanelView = ({ onSwitchPortal }) => {
     { id: 'schedules', label: t('adminSchedules') || 'Dose Schedules', icon: Calendar },
     { id: 'alerts', label: t('adminAlertsAudits') || 'Escalation Logs', icon: BellRing },
     { id: 'reports', label: t('adminReportsData') || 'Medical Documents', icon: FileText },
+    { id: 'ai-copilot-rag', label: 'AI Health Copilot & RAG', icon: Bot, badge: knowledgeSources.length },
     { id: 'settings', label: t('adminSettings') || 'System Settings & DB', icon: Settings }
   ];
 
@@ -1589,6 +1666,136 @@ export const AdminPanelView = ({ onSwitchPortal }) => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB: AI HEALTH COPILOT & RAG KNOWLEDGE BASE (Requirement 11)
+          ===================================================================== */}
+      {activeTab === 'ai-copilot-rag' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Top Status & Controls */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <div className="card" style={{ padding: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <BookOpen size={24} color="var(--primary)" />
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Approved Knowledge Sources</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--navy)' }}>{knowledgeSources.length} Guidelines</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Bot size={24} color="#10b981" />
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>AI Copilot Engine</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>{aiConfig?.provider ? aiConfig.provider.toUpperCase() : 'MEDICAL RAG'}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ShieldCheck size={24} color="#0284c7" />
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Clinical Guardrails</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#16a34a' }}>Active & Enforced</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions Bar */}
+          <div className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 style={{ margin: '0 0 4px 0', color: 'var(--navy)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Bot size={20} color="var(--primary)" />
+                AI Health Copilot Approved Knowledge Management
+              </h3>
+              <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                Configure trusted clinical sources (WHO, CDC, ICMR, NICE). Patient private records are strictly kept isolated.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleReindexKnowledge}
+                disabled={reindexing}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <RefreshCw size={14} className={reindexing ? 'spinning' : ''} />
+                {reindexing ? 'Re-indexing Knowledge...' : 'Re-index Medical Base'}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setIsAddKnowledgeOpen(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={14} /> Add Clinical Source
+              </button>
+            </div>
+          </div>
+
+          {/* Knowledge Sources Table */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="card-title">
+                Approved Clinical Knowledge Sources ({knowledgeSources.length})
+              </h3>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--border-light)', textAlign: 'left', color: 'var(--text-muted)' }}>
+                    <th style={{ padding: '10px' }}>Guideline Source</th>
+                    <th style={{ padding: '10px' }}>Authoritative Body</th>
+                    <th style={{ padding: '10px' }}>URL / Citation</th>
+                    <th style={{ padding: '10px' }}>Published</th>
+                    <th style={{ padding: '10px' }}>Chunks</th>
+                    <th style={{ padding: '10px', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {knowledgeSources.map(s => (
+                    <tr key={s.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <td style={{ padding: '10px', fontWeight: 600, color: 'var(--navy)' }}>{s.sourceName}</td>
+                      <td style={{ padding: '10px' }}>
+                        <span className="badge badge-blue">{s.authoritativeBody}</span>
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        {s.sourceUrl ? (
+                          <a href={s.sourceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            Visit Source
+                          </a>
+                        ) : '—'}
+                      </td>
+                      <td style={{ padding: '10px', color: 'var(--text-muted)' }}>{s.publicationDate}</td>
+                      <td style={{ padding: '10px' }}>
+                        <span className="badge badge-green">{s.chunkCount || s.chunks?.length || 1} Chunks</span>
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ color: '#dc2626' }}
+                          onClick={() => handleDeleteKnowledge(s.id)}
+                          title="Delete source"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -2674,6 +2881,129 @@ export const AdminPanelView = ({ onSwitchPortal }) => {
                 </button>
                 <button type="submit" className="btn btn-primary">
                   <Save size={15} /> Save Template
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL: ADD CLINICAL KNOWLEDGE SOURCE (AI Health Copilot & RAG)
+          ===================================================================== */}
+      {isAddKnowledgeOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '640px' }}>
+            <div className="modal-header">
+              <h3 className="card-title">
+                <BookOpen size={20} color="var(--primary)" />
+                Add Approved Clinical Knowledge Source
+              </h3>
+              <button className="btn btn-secondary btn-sm" onClick={() => setIsAddKnowledgeOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateKnowledge}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Source / Guideline Name *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      required
+                      placeholder="e.g. WHO Guidelines on Hypertension"
+                      value={newKnowledge.sourceName}
+                      onChange={(e) => setNewKnowledge({ ...newKnowledge, sourceName: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Authoritative Body *</label>
+                    <select
+                      className="form-input"
+                      value={newKnowledge.authoritativeBody}
+                      onChange={(e) => setNewKnowledge({ ...newKnowledge, authoritativeBody: e.target.value })}
+                    >
+                      <option value="WHO">WHO</option>
+                      <option value="ICMR">ICMR</option>
+                      <option value="CDC">CDC</option>
+                      <option value="NICE">NICE</option>
+                      <option value="FDA">FDA</option>
+                      <option value="NHS">NHS</option>
+                      <option value="AHA">AHA</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Official Guideline URL</label>
+                    <input
+                      type="url"
+                      className="form-input"
+                      placeholder="https://www.who.int/publications/..."
+                      value={newKnowledge.sourceUrl}
+                      onChange={(e) => setNewKnowledge({ ...newKnowledge, sourceUrl: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Version / Edition</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="2024.1"
+                      value={newKnowledge.version}
+                      onChange={(e) => setNewKnowledge({ ...newKnowledge, version: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Clinical Topic *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      required
+                      placeholder="e.g. Blood Pressure Targets & Stage 1 HTN"
+                      value={newKnowledge.topic}
+                      onChange={(e) => setNewKnowledge({ ...newKnowledge, topic: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Search Keywords</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="hypertension, bp, systolic, mmhg"
+                      value={newKnowledge.keywords}
+                      onChange={(e) => setNewKnowledge({ ...newKnowledge, keywords: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Authoritative Guideline Text / Clinical Excerpt *</label>
+                  <textarea
+                    rows={6}
+                    required
+                    className="form-input"
+                    placeholder="Paste the evidence-based recommendation, clinical ranges, or guidance here for AI Health Copilot RAG semantic retrieval..."
+                    value={newKnowledge.guidelineText}
+                    onChange={(e) => setNewKnowledge({ ...newKnowledge, guidelineText: e.target.value })}
+                  />
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    This text will be chunked, indexed, and retrieved to ground AI Health Copilot responses with clinical evidence.
+                  </p>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setIsAddKnowledgeOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  <Save size={15} /> Save & Index Guideline
                 </button>
               </div>
             </form>

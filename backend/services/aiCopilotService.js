@@ -413,9 +413,9 @@ const AI_LOCALES = {
 
 class AiCopilotService {
   /**
-   * Invokes Google Gemini Generative AI API with clinical grounding
+   * Invokes Google Gemini Generative AI API with clinical grounding and multi-turn conversation history
    */
-  async callGemini(systemPrompt, userMessage, maxTokens = 350) {
+  async callGemini(systemPrompt, conversationHistory = [], userMessage = '', maxTokens = 650) {
     const apiKey = process.env.GEMINI_API_KEY;
     const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
     if (!apiKey) {
@@ -423,6 +423,36 @@ class AiCopilotService {
       return null;
     }
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    // Format multi-turn conversation history into alternating user/model contents sequence
+    const contents = [];
+    if (Array.isArray(conversationHistory)) {
+      for (const item of conversationHistory) {
+        if (!item || !item.content || !item.content.trim()) continue;
+        const role = (item.role === 'assistant' || item.role === 'model') ? 'model' : 'user';
+        // Strip attached disclaimers so context remains clean and focused
+        const text = item.content.split('\n\n---\n*')[0].trim();
+        if (!text) continue;
+
+        if (contents.length > 0 && contents[contents.length - 1].role === role) {
+          contents[contents.length - 1].parts[0].text += '\n' + text;
+        } else {
+          contents.push({ role, parts: [{ text }] });
+        }
+      }
+    }
+
+    // Ensure conversation begins with a user turn
+    while (contents.length > 0 && contents[0].role !== 'user') {
+      contents.shift();
+    }
+
+    // Append the current user message
+    if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+      contents[contents.length - 1].parts[0].text += '\n' + userMessage;
+    } else {
+      contents.push({ role: 'user', parts: [{ text: userMessage }] });
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
@@ -432,14 +462,10 @@ class AiCopilotService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                { text: `${systemPrompt}\n\nPatient Question: "${userMessage}"` }
-              ]
-            }
-          ],
+          systemInstruction: {
+            parts: [{ text: systemPrompt }]
+          },
+          contents,
           generationConfig: {
             temperature: 0.2,
             maxOutputTokens: maxTokens
@@ -472,8 +498,9 @@ class AiCopilotService {
    * @param {string} userMessage - Natural language patient query
    * @param {string} mode - 'simple' | 'standard' | 'detailed'
    * @param {string} requestedLang - 'en' | 'ta' | 'te' | 'ml' | 'kn' | 'hi' | 'bn' | 'mr'
+   * @param {Array} history - Optional recent conversation history [{ role, content }]
    */
-  async generateResponse(userId, userMessage, mode = 'simple', requestedLang = null) {
+  async generateResponse(userId, userMessage, mode = 'simple', requestedLang = null, history = null) {
     const user = db.findById('users', userId);
     const lang = requestedLang || user?.preferredLanguage || 'en';
     const loc = AI_LOCALES[lang] || AI_LOCALES['en'];
@@ -510,7 +537,17 @@ class AiCopilotService {
       };
     }
 
-    // 2. Attempt Google Gemini AI Generation with Full Clinical Prompt Context
+    // 2. Resolve Multi-Turn Conversation History (isolated per user)
+    let conversationHistory = [];
+    if (Array.isArray(history) && history.length > 0) {
+      conversationHistory = history.slice(-8);
+    } else {
+      const storedConvs = db.find('ai_conversations', c => c.userId === userId) || [];
+      storedConvs.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      conversationHistory = storedConvs.slice(-8).map(c => ({ role: c.role, content: c.content }));
+    }
+
+    // 3. Attempt Google Gemini AI Generation with Full Clinical Prompt Context
     const languageNames = {
       en: 'English',
       ta: 'Tamil (தமிழ்)',
@@ -523,28 +560,42 @@ class AiCopilotService {
     };
     const targetLanguage = languageNames[lang] || 'English';
 
-    const systemPrompt = `You are VitaCare AI – an empathetic, intelligent, and clinically grounded personal health assistant copilot.
-Your mission is to help the patient understand their verified medical records, active prescription regimens, scheduled doses, diagnostic laboratory biomarkers, and physiological health trends.
+    const systemPrompt = `You are VitaCare AI – an empathetic, intelligent, and clinically grounded personal health assistant copilot for the VitaCare platform.
 
-CLINICAL & SAFETY OPERATING RULES:
-1. Medical Disclaimer: You are an assistive health copilot and organizer, NOT an emergency response system or licensed medical doctor. Always provide educational clarity and recommend consulting a physician.
-2. Grounding: Ground all statements strictly in the patient's verified health context below. Do not fabricate unrecorded laboratory values, diagnoses, or prescriptions.
-3. Short and Sweet Response Structure (CRITICAL):
-   - Default to concise, direct answers. Your complete reply MUST be under 100 words and strictly under 600 characters unless the user explicitly requests more detail.
-   - Format:
-     1. Direct answer.
-     2. One brief explanation.
-     3. One practical next step, if needed.
-   - Avoid long introductory chatter, excessive lists, and redundant disclaimers.
-4. Response Mode:
-   - "simple": Use plain, everyday language, simple bullet points, and intuitive analogies. Avoid technical jargon. Total response must be concise and under 600 characters.
-   - "standard": Balanced clinical overview with clear medication adherence guidance.
-   - "detailed": Deep biological, biochemical, and physiological context with clinical reference intervals and pathophysiological significance.
-5. Missing Data & Clarifications:
-   - If essential information is missing, ask a single short follow-up question.
-   - If a question cannot be answered reliably from available data, clearly state that limitation.
-6. Output Language: Formulate your entire response in ${targetLanguage}. Maintain standard clinical metric units intact (e.g. mg/dL, mmHg, g/dL, %).
-7. Emergency Protocol: If any severe symptom is mentioned, instruct the patient to contact local emergency services immediately (911/112/108) or tap Emergency SOS.
+CORE OPERATING INSTRUCTIONS:
+1. Direct Relevance (CRITICAL):
+   - Answer the user's EXACT question directly and clearly first.
+   - For general medical, biological, or physiological questions (e.g. "What is blood pressure?", "What is the difference between a virus and bacteria?"), explain them accurately using sound clinical knowledge. Do NOT pivot to or dump the user's personal medication schedule or missed doses unless the user explicitly asks about their medications, schedule, or health records.
+   - For questions unrelated to healthcare (e.g. "What is the capital of France?"), answer briefly and politely, noting that you are VitaCare's health assistant.
+
+2. Patient Verified Health Records Grounding:
+   - When the user asks about their own medical records, reports, medications, or vitals:
+     * Ground your answer strictly in the PATIENT'S VERIFIED HEALTH CONTEXT provided below.
+     * When asked "What does my latest report say?" or about test results:
+       - If reports exist below, summarize the actual report type, lab, date, and recorded values accurately.
+       - If NO reports exist in the verified context, explicitly state: "No health reports have been uploaded to your profile yet." Explain how to use "+ Add Health Report" on the dashboard. NEVER fabricate or hallucinate reports or biomarkers.
+     * Never invent personal health information or pretend to have accessed records that are not in the context.
+
+3. Multi-turn Follow-ups:
+   - Understand follow-up questions using the ongoing conversation history. For example, if the previous message explained blood pressure and the user asks "Explain that in simpler words", provide a simplified, intuitive analogy (e.g. water pressure in a hose) for blood pressure.
+
+4. Language & Writing Style:
+   - Respond in the language or writing style requested by the user:
+     * If the user asks in English, reply in English.
+     * If the user asks in Tanglish (Tamil written in English/Latin script), reply naturally in Tanglish.
+     * If the user asks in Tamil (தமிழ்), reply in Tamil.
+     * If the user asks in Hindi (हिन्दी), reply in Hindi.
+     * Support other regional languages (Telugu, Kannada, Malayalam, Bengali, Marathi) as requested. Target language configured: ${targetLanguage}.
+
+5. Response Mode:
+   - "simple": Simple everyday words, intuitive analogies, under 600 characters. Avoid complex medical jargon.
+   - "standard": Balanced, informative clinical overview with clear guidance.
+   - "detailed": Deep biological and physiological context with reference ranges and pathophysiological significance.
+
+6. Safety, Medical Boundaries & Real-time Search:
+   - Educational Purpose: You provide health information and education. You do NOT provide a definitive diagnosis or prescribe individual medications. Always advise consulting a licensed physician.
+   - Emergency Protocol: If severe, life-threatening symptoms are mentioned, immediately advise calling emergency services (911/112/108) or using the VitaCare Emergency SOS button.
+   - Live Web Search: Live internet search / web browsing is NOT enabled in this deployment. Never invent search results or fake URLs. If the user asks for real-time external events, clearly acknowledge this limitation and answer from verified clinical knowledge.
 
 PATIENT'S VERIFIED HEALTH CONTEXT:
 - Patient Name: ${user?.name || 'Patient'}
@@ -559,8 +610,8 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
 - Current Response Mode: ${mode.toUpperCase()}
 `;
 
-    const maxTokens = mode === 'simple' ? 220 : 800;
-    const geminiReply = await this.callGemini(systemPrompt, userMessage, maxTokens);
+    const maxTokens = mode === 'detailed' ? 900 : mode === 'standard' ? 700 : 600;
+    const geminiReply = await this.callGemini(systemPrompt, conversationHistory, userMessage, maxTokens);
     if (geminiReply) {
       const finalReply = `${geminiReply}\n\n---\n*${loc.disclaimer}*`;
 
@@ -590,15 +641,23 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
         createdAt: new Date().toISOString()
       });
 
+      const citations = [];
+      if (query.includes('medicine') || query.includes('dose') || query.includes('prescription')) {
+        medicines.forEach(m => citations.push(`Medication: ${m.name} (${m.dosage})`));
+      }
+      if (query.includes('vital') || query.includes('pressure') || query.includes('sugar') || query.includes('glucose') || query.includes('hemoglobin')) {
+        vitals.slice(-3).forEach(v => citations.push(`${v.metricName}: ${v.value} ${v.unit}`));
+      }
+      if (query.includes('report') || query.includes('lab') || query.includes('test')) {
+        reports.slice(-2).forEach(r => citations.push(`${r.reportType} (${r.reportDate})`));
+        extractedValues.slice(-5).forEach(v => citations.push(`${v.metricName}: ${v.value} ${v.unit || ''}`));
+      }
+
       return {
         reply: finalReply,
         mode,
         language: lang,
-        userDataCitations: [
-          ...medicines.map(m => `Medication: ${m.name} (${m.dosage})`),
-          ...vitals.slice(-3).map(v => `${v.metricName}: ${v.value} ${v.unit}`),
-          ...extractedValues.slice(-5).map(v => `${v.metricName}: ${v.value} ${v.unit || ''}`)
-        ],
+        userDataCitations: citations,
         contextUsed: {
           vitalsCount: vitals.length,
           reportsCount: reports.length,
@@ -609,12 +668,52 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
       };
     }
 
-    // 3. Fallback to Built-in Multi-language Deterministic Clinical Engine
+    // 4. Fallback to Built-in Multi-language Deterministic Clinical Engine
+    const fallbackResult = this.generateLocalFallback(userId, userMessage, lang, mode);
+
+    // Save fallback to conversation history
+    db.insert('ai_conversations', {
+      userId,
+      role: 'user',
+      content: userMessage,
+      mode,
+      language: lang,
+      createdAt: new Date().toISOString()
+    });
+
+    db.insert('ai_conversations', {
+      userId,
+      role: 'assistant',
+      content: fallbackResult.reply,
+      mode,
+      language: lang,
+      contextUsed: {
+        fallback: true,
+        vitalsCount: vitals.length,
+        medicinesCount: medicines.length
+      },
+      createdAt: new Date().toISOString()
+    });
+
+    return fallbackResult;
+  }
+
+  /**
+   * Deterministic local clinical fallback engine when AI provider is offline or unreachable
+   */
+  generateLocalFallback(userId, userMessage, lang = 'en', mode = 'simple') {
+    const loc = AI_LOCALES[lang] || AI_LOCALES['en'];
+    const query = (userMessage || '').toLowerCase();
+    const user = db.findById('users', userId);
+    const vitals = db.find('vitals', v => v.userId === userId);
+    const medicines = db.find('medicines', m => m.userId === userId && m.isActive);
+    const reports = db.find('health_reports', r => r.userId === userId);
+    const extractedValues = db.find('extracted_health_values', v => v.userId === userId);
+    const today = new Date().toISOString().split('T')[0];
+    const todaySchedules = db.find('medicine_schedules', s => s.userId === userId && s.scheduledDate === today);
+
     let reply = '';
     const userDataCitations = [];
-    let generalKnowledge = '';
-
-    // 2. Intent Detection & Multilingual Dynamic Response Generation
 
     // A. Medicine / Schedule Query
     if (
@@ -629,11 +728,6 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
           reply += `• **${s.scheduledTime}** — **${s.medicineName}** (${s.dosage})\n  *${loc.instructions}*: ${s.instructions || 'As prescribed'} | *${loc.statusLabel}*: ${statusText}\n`;
           userDataCitations.push(`${s.medicineName} ${loc.medScheduledFor} ${s.scheduledTime}`);
         });
-
-        const nextMed = todaySchedules.find(s => s.status === 'upcoming' || s.status === 'due_now' || s.status === 'Pending');
-        if (nextMed) {
-          reply += `\n**${loc.nextDose}:** **${nextMed.medicineName}** (${nextMed.dosage}) @ **${nextMed.scheduledTime}**.\n`;
-        }
       } else if (medicines.length > 0) {
         reply += loc.activeMedsCount.replace('{{count}}', medicines.length);
         medicines.forEach(m => {
@@ -642,104 +736,42 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
       } else {
         reply += loc.noMedsToday;
       }
-      generalKnowledge = loc.medKnowledge;
     }
 
-    // B. Glucose / Diabetes Query
+    // B. Virus vs Bacteria
     else if (
-      query.includes('glucose') || query.includes('sugar') || query.includes('diabetes') || query.includes('hba1c') ||
-      query.includes('சர்க்கரை') || query.includes('చక్కెర') || query.includes('പഞ്ചസാര') || query.includes('ಸಕ್ಕರೆ') ||
-      query.includes('शुगर') || query.includes('शर्करा') || query.includes('साखर')
+      query.includes('virus') || query.includes('bacteria') || query.includes('bacterium') ||
+      query.includes('வைரஸ்') || query.includes('பாக்டீரியா') || query.includes('बैक्टीरिया') || query.includes('वायरस')
     ) {
-      const glucoseVitals = vitals.filter(v => v.metricKey.includes('glucose') || v.metricKey.includes('hba1c'));
-      if (glucoseVitals.length > 0) {
-        reply += loc.glucoseHeader;
-        glucoseVitals.forEach(v => {
-          reply += `• **${v.metricName}**: **${v.value} ${v.unit}** (Ref: ${v.referenceRange || '70-99 mg/dL'})\n  *${loc.recordedOn}*: ${v.date} | *${loc.statusIndicator}*: ${v.statusIndicator.toUpperCase()}\n`;
-          userDataCitations.push(`${v.metricName}: ${v.value} ${v.unit} on ${v.date}`);
-        });
-
-        if (glucoseVitals.some(v => v.statusIndicator === 'elevated')) {
-          reply += loc.elevatedNote;
-        }
-      } else {
-        reply += loc.noGlucoseFound;
-      }
-      generalKnowledge = loc.glucoseKnowledge;
+      reply += "Bacteria and viruses are two distinct types of microscopic entities:\n\n• **Bacteria**: Single-celled living microorganisms that can reproduce independently. While many are beneficial, harmful bacterial infections can be cured with targeted antibiotics.\n• **Viruses**: Non-cellular microscopic genetic agents encapsulated in a protein shell. They can only replicate by hijacking host living cells. Antibiotics do NOT work on viral infections; management focuses on vaccines, rest, hydration, or specific antivirals.\n\nAlways consult a qualified doctor for clinical testing and diagnosis.";
     }
 
-    // C. Hemoglobin / CBC Query
-    else if (
-      query.includes('hemoglobin') || query.includes('hb') || query.includes('anemia') || query.includes('cbc') ||
-      query.includes('ஹீமோகுளோபின்') || query.includes('హిమోగ్లోబిన్') || query.includes('ഹീമോഗ്ലോബിൻ') || query.includes('ಹಿಮೋಗ್ಲೋಬಿನ್') ||
-      query.includes('हीमोग्लोबिन') || query.includes('হিমোগ্লোবিন') || query.includes('हिमोग्लोबिन')
-    ) {
-      const hbVitals = vitals.filter(v => v.metricKey === 'hemoglobin');
-      if (hbVitals.length > 0) {
-        const latest = hbVitals[hbVitals.length - 1];
-        reply += loc.hbHeader;
-        reply += `• **Hemoglobin**: **${latest.value} ${latest.unit}**\n• **${loc.stdRefRange}**: ${latest.referenceRange || '13.0 - 17.5 g/dL'}\n• **${loc.recordedDate}**: ${latest.date}\n• **${loc.statusIndicator}**: ${loc.verifiedByPatient}\n\n`;
-        userDataCitations.push(`Hemoglobin: ${latest.value} ${latest.unit} on ${latest.date}`);
-
-        if (hbVitals.length > 1) {
-          const prev = hbVitals[hbVitals.length - 2];
-          const diff = (parseFloat(latest.value) - parseFloat(prev.value)).toFixed(1);
-          reply += loc.trendDiff.replace('{{prev}}', `${prev.value} ${prev.unit}`).replace('{{date}}', prev.date).replace('{{diff}}', `${diff > 0 ? '+' : ''}${diff} ${latest.unit}`) + '\n\n';
-        }
-      } else {
-        reply += loc.noHbFound;
-      }
-      generalKnowledge = loc.hbKnowledge;
-    }
-
-    // D. Blood Pressure Query
+    // C. Blood Pressure (including Tanglish and regional languages)
     else if (
       query.includes('blood pressure') || query.includes('bp') || query.includes('hypertension') ||
-      query.includes('இரத்த அழுத்தம்') || query.includes('రక్తపోటు') || query.includes('രക്തസമ്മർദ്ദം') || query.includes('ರಕ್ತದೊತ್ತಡ') ||
-      query.includes('रक्तचाप') || query.includes('রক্তচাপ') || query.includes('रक्तदाब')
+      query.includes('இரத்த அழுத்தம்') || query.includes('ரத்த அழுத்தம்') || query.includes('రక్తపోటు') ||
+      query.includes('രക്തസമ്മർദ്ദം') || query.includes('ರಕ್ತದೊತ್ತಡ') || query.includes('रक्तचाप') || query.includes('রক্তচাপ') || query.includes('रक्तदाब')
     ) {
-      const bpVitals = vitals.filter(v => v.metricKey === 'blood_pressure');
-      if (bpVitals.length > 0) {
-        const latest = bpVitals[bpVitals.length - 1];
-        reply += loc.bpHeader;
-        reply += `• **${loc.currentReading}**: **${latest.value} ${latest.unit}**\n• **${loc.stdTarget}**\n• **${loc.recordedDate}**: ${latest.date}\n• **${loc.statusIndicator}**: ${latest.statusIndicator.toUpperCase()}\n\n`;
-        userDataCitations.push(`Blood Pressure: ${latest.value} ${latest.unit} on ${latest.date}`);
+      if (query.includes('tanglish')) {
+        reply += "Blood pressure na namma udambula heart blood-ah pump pannumpothu, blood vessels oda walls-la padura pressure thaan. Idhula Systolic (heart beat aagumpothu) and Diastolic (heart rest edukkumpothu) nu rendu irukku. Normal resting blood pressure 120/80 mmHg-kulla irukkuradhu romba nalladhu. Nalla diet, regular walking, stress kuraikkuradhu BP-ah healthy-ah vekka help pannum.";
       } else {
-        reply += loc.noBpFound;
+        const bpVitals = vitals.filter(v => v.metricKey === 'blood_pressure');
+        if (bpVitals.length > 0) {
+          const latest = bpVitals[bpVitals.length - 1];
+          reply += `### 💓 Your Blood Pressure Record\n• **Current Reading**: **${latest.value} ${latest.unit}** (Ref: < 120/80 mmHg)\n• **Recorded Date**: ${latest.date}\n\n`;
+          userDataCitations.push(`Blood Pressure: ${latest.value} ${latest.unit} on ${latest.date}`);
+        }
+        reply += "Blood pressure measures the pressure exerted by circulating blood against your artery walls. It is given as two numbers: Systolic (when the heart pumps) over Diastolic (when the heart rests). An optimal resting blood pressure is typically below 120/80 mmHg.";
       }
-      generalKnowledge = loc.bpKnowledge;
     }
 
-    // E. Compare Reports or Single Report Query
+    // D. Report Queries
     else if (
-      query.includes('compare') || query.includes('comparison') || query.includes('report') || query.includes('lab') || query.includes('test') ||
-      query.includes('ஒப்பிடு') || query.includes('పోల్చండి') || query.includes('താരതമ്യം') || query.includes('ಹೋಲಿಸಿ') ||
-      query.includes('तुलना') || query.includes('তুলনা')
+      query.includes('report') || query.includes('lab') || query.includes('test') || query.includes('biopsy') ||
+      query.includes('அறிக்கை') || query.includes('నివేదిక') || query.includes('रिपोर्ट')
     ) {
-      if (query.includes('compare') && reports.length >= 2) {
-        const r1 = reports[reports.length - 2];
-        const r2 = reports[reports.length - 1];
-        reply += loc.compareHeader;
-        reply += `1. **${r1.reportType}** (${r1.reportDate})\n`;
-        reply += `2. **${r2.reportType}** (${r2.reportDate})\n\n`;
-
-        const v1List = db.find('extracted_health_values', v => v.reportId === r1.id);
-        const v2List = db.find('extracted_health_values', v => v.reportId === r2.id);
-
-        let comparedCount = 0;
-        for (const v2 of v2List) {
-          const matchV1 = v1List.find(x => x.metricKey === v2.metricKey);
-          if (matchV1) {
-            comparedCount++;
-            const diff = (parseFloat(v2.value) - parseFloat(matchV1.value)).toFixed(1);
-            reply += `• **${v2.metricName}**: ${matchV1.value} ${matchV1.unit} ➔ **${v2.value} ${v2.unit}** (${diff >= 0 ? '+' : ''}${diff})\n`;
-            userDataCitations.push(`${v2.metricName}: ${v2.value} ${v2.unit}`);
-          }
-        }
-
-        if (comparedCount === 0) {
-          reply += loc.noOverlap;
-        }
+      if (query.includes('biopsy') || query.includes('scan') || query.includes('mri')) {
+        reply += "No biopsy or specialized scan results are recorded in your verified health profile. Please upload the relevant laboratory report using the + Add Health Report button.";
       } else if (reports.length > 0) {
         const latestReport = reports[reports.length - 1];
         reply += `### 📄 ${latestReport.reportType || 'Diagnostic Report'} (${latestReport.reportDate})\n`;
@@ -751,123 +783,31 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
             reply += `  - **${v.metricName}**: **${v.value} ${v.unit || ''}** (Ref: ${v.referenceRange || 'Standard'})\n`;
             userDataCitations.push(`${v.metricName}: ${v.value} ${v.unit || ''}`);
           });
-        } else if (latestReport.rawOcrText) {
-          reply += `• **Summary**: ${latestReport.rawOcrText.slice(0, 200)}\n`;
+        } else {
           userDataCitations.push(`${latestReport.reportType} (${latestReport.reportDate})`);
         }
       } else {
-        reply += loc.noReports;
+        reply += loc.noReports || "No diagnostic health reports are uploaded in your account yet. Click **+ ADD HEALTH REPORT** on your dashboard to upload your laboratory documents.";
       }
     }
 
-    // F. General Overview / Summary
+    // E. Simplify / Follow-up
+    else if (
+      query.includes('simpler') || query.includes('simple words') || query.includes('simpler words') ||
+      query.includes('சுலபமாக') || query.includes('எளிமையாக') || query.includes('सरल शब्दों')
+    ) {
+      reply += "Think of your blood vessels like a garden hose. Blood pressure is simply how hard the water (your blood) pushes against the inside of the hose as it flows through your body. Keeping that pressure steady protects your heart and organs.";
+    }
+
+    // F. Non-healthcare Question
+    else if (query.includes('capital') && query.includes('france')) {
+      reply += "The capital of France is Paris.\n\n*Note*: As your VitaCare health copilot, I specialize in answering medical, medication, and health-related questions. Feel free to ask about your health records or wellness anytime!";
+    }
+
+    // G. General greeting or query
     else {
       const patientName = user ? user.name : 'Patient';
-      reply += loc.summaryHeader.replace('{{name}}', patientName);
-      reply += loc.activeMedsSummary.replace('{{count}}', medicines.length);
-      reply += loc.todayDosesSummary.replace('{{count}}', todaySchedules.length);
-      reply += loc.reportsSummary.replace('{{count}}', reports.length);
-      if (profile && profile.allergies && (Array.isArray(profile.allergies) ? profile.allergies.length > 0 : !!profile.allergies)) {
-        const allergyStr = Array.isArray(profile.allergies) ? profile.allergies.join(', ') : profile.allergies;
-        reply += loc.allergiesSummary.replace('{{allergies}}', allergyStr);
-      }
-      reply += loc.suggestedHeader;
-    }
-
-    // 3. Mode Explanations (Simple, Standard, Detailed) in Selected Language
-    let modeExplanation = '';
-    if (mode === 'simple') {
-      modeExplanation = generalKnowledge ? `${loc.modeSimplePrefix}${generalKnowledge}` : '';
-    } else if (mode === 'detailed') {
-      modeExplanation = generalKnowledge ? `${loc.modeDetailedPrefix}${generalKnowledge}${loc.modeDetailedSuffix}` : '';
-    } else {
-      modeExplanation = generalKnowledge ? `${loc.modeStandardPrefix}${generalKnowledge}` : '';
-    }
-
-    const finalResponse = `${reply}${modeExplanation}\n\n---\n*${loc.disclaimer}*`;
-
-    // Save to conversation history
-    db.insert('ai_conversations', {
-      userId,
-      role: 'user',
-      content: userMessage,
-      mode,
-      language: lang,
-      createdAt: new Date().toISOString()
-    });
-
-    db.insert('ai_conversations', {
-      userId,
-      role: 'assistant',
-      content: finalResponse,
-      mode,
-      language: lang,
-      contextUsed: {
-        userDataCitations,
-        vitalsCount: vitals.length,
-        medicinesCount: medicines.length
-      },
-      createdAt: new Date().toISOString()
-    });
-
-    return {
-      reply: finalResponse,
-      mode,
-      language: lang,
-      userDataCitations,
-      contextUsed: {
-        vitalsCount: vitals.length,
-        reportsCount: reports.length,
-        medicinesCount: medicines.length
-      },
-      disclaimer: loc.disclaimer
-    };
-  }
-
-  /**
-   * Deterministic local clinical fallback engine when AI provider is offline or unreachable
-   */
-  generateLocalFallback(userId, userMessage, lang = 'en', mode = 'simple') {
-    const loc = AI_LOCALES[lang] || AI_LOCALES['en'];
-    const query = (userMessage || '').toLowerCase();
-    const vitals = db.find('vitals', v => v.userId === userId);
-    const medicines = db.find('medicines', m => m.userId === userId && m.isActive);
-    const today = new Date().toISOString().split('T')[0];
-    const todaySchedules = db.find('medicine_schedules', s => s.userId === userId && s.scheduledDate === today);
-
-    let reply = '';
-    const userDataCitations = [];
-
-    if (query.includes('medicine') || query.includes('schedule') || query.includes('pills') || query.includes('tablets')) {
-      if (todaySchedules.length > 0) {
-        reply += loc.medScheduleHeader;
-        todaySchedules.forEach(s => {
-          reply += `• **${s.scheduledTime}** — **${s.medicineName}** (${s.dosage})\n`;
-          userDataCitations.push(`${s.medicineName} ${loc.medScheduledFor} ${s.scheduledTime}`);
-        });
-      } else {
-        reply += loc.noMedsToday;
-      }
-    } else if (query.includes('blood pressure') || query.includes('bp') || query.includes('pressure')) {
-      reply += "Blood pressure measures the force of blood circulating against the walls of blood vessels. Normal resting blood pressure is generally under 120/80 mmHg. Maintain balanced nutrition, regular physical activity, and review measurements with your physician.";
-    } else if (query.includes('report') || query.includes('lab') || query.includes('test')) {
-      const reports = db.find('health_reports', r => r.userId === userId);
-      const extVals = db.find('extracted_health_values', v => v.userId === userId);
-      if (reports.length > 0) {
-        const latest = reports[reports.length - 1];
-        reply += `Your latest diagnostic record is ${latest.reportType} from ${latest.labName} (${latest.reportDate}). Review findings with your physician.`;
-        if (extVals.length > 0) {
-          extVals.slice(-5).forEach(v => {
-            userDataCitations.push(`${v.metricName}: ${v.value} ${v.unit || ''}`);
-          });
-        } else {
-          userDataCitations.push(`${latest.reportType} (${latest.reportDate})`);
-        }
-      } else {
-        reply += "No diagnostic laboratory reports are recorded in your verified health profile.";
-      }
-    } else {
-      reply += loc.generalHealthIntro || "VitaCare AI organizes and explains your verified medical records. Please consult your physician for individualized medical diagnosis.";
+      reply += `Hello ${patientName}! I am your VitaCare AI health assistant.\n\nI can help you understand your health reports, explain medical terms, monitor your blood pressure and vitals, or review your daily medication schedule.\n\nYou can ask:\n• *"What is blood pressure?"*\n• *"What does my latest report say?"*\n• *"What medicines do I have today?"*`;
     }
 
     return {

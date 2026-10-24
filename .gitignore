@@ -26,7 +26,33 @@ vitacare-ai-complete.zip
 .env.local
 *.env
 backend/.env
+backend_py/.env
 
 # Uploads
 backend/uploads/*
 !backend/uploads/.gitkeep
+backend_py/uploads/*
+!backend_py/uploads/.gitkeep
+backend_py/uploads/prescriptions/*
+!backend_py/uploads/prescriptions/.gitkeep
+backend_py/uploads/reports/*
+!backend_py/uploads/reports/.gitkeep
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+backend_py/.venv/
+.venv/
+venv/
+ENV/
+*.db
+*.sqlite3
+backend_py/vitacare.db
+backend/data/vitacare_db.json.bak
+

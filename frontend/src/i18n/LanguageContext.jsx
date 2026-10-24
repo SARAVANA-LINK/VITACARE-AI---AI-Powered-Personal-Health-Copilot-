@@ -7,10 +7,11 @@ const LanguageContext = createContext(null);
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧', bcp47: 'en-US' },
   { code: 'ta', name: 'Tamil', nativeName: 'தமிழ்', flag: '🇮🇳', bcp47: 'ta-IN' },
+  { code: 'tanglish', name: 'Tanglish', nativeName: 'Tanglish (தமிழ்)', flag: '🇮🇳', bcp47: 'ta-IN' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳', bcp47: 'hi-IN' },
   { code: 'te', name: 'Telugu', nativeName: 'తెలుగు', flag: '🇮🇳', bcp47: 'te-IN' },
   { code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം', flag: '🇮🇳', bcp47: 'ml-IN' },
   { code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ', flag: '🇮🇳', bcp47: 'kn-IN' },
-  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳', bcp47: 'hi-IN' },
   { code: 'bn', name: 'Bengali', nativeName: 'বাংলা', flag: '🇮🇳', bcp47: 'bn-IN' },
   { code: 'mr', name: 'Marathi', nativeName: 'मराठी', flag: '🇮🇳', bcp47: 'mr-IN' }
 ];
@@ -56,6 +57,7 @@ export const LanguageProvider = ({ children }) => {
 
   useEffect(() => {
     loadCmsTranslations();
+
     const handleStorage = (e) => {
       if (e.key === 'vitacare_lang' && e.newValue) {
         if (SUPPORTED_LANGUAGES.some(l => l.code === e.newValue)) {
@@ -63,14 +65,26 @@ export const LanguageProvider = ({ children }) => {
         }
       }
     };
+
+    const handleCustomChange = (e) => {
+      if (e.detail && SUPPORTED_LANGUAGES.some(l => l.code === e.detail)) {
+        setLanguageState(e.detail);
+      }
+    };
+
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    window.addEventListener('vitacare_lang_changed', handleCustomChange);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('vitacare_lang_changed', handleCustomChange);
+    };
   }, [loadCmsTranslations]);
 
   const setLanguage = useCallback(async (newLang) => {
     if (!SUPPORTED_LANGUAGES.some(l => l.code === newLang)) return;
     setLanguageState(newLang);
     localStorage.setItem('vitacare_lang', newLang);
+    window.dispatchEvent(new CustomEvent('vitacare_lang_changed', { detail: newLang }));
 
     // Save to user account profile on backend
     try {
@@ -134,16 +148,65 @@ export const LanguageProvider = ({ children }) => {
     return SUPPORTED_LANGUAGES.find(l => l.code === language) || SUPPORTED_LANGUAGES[0];
   }, [language]);
 
+  const formatDate = useCallback((date, options = {}) => {
+    if (!date) return '';
+    try {
+      const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+      if (isNaN(d.getTime())) return String(date);
+      const locale = currentLanguageObj.bcp47 || 'en-US';
+      return new Intl.DateTimeFormat(locale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        ...options
+      }).format(d);
+    } catch {
+      return String(date);
+    }
+  }, [currentLanguageObj]);
+
+  const formatTime = useCallback((time, options = {}) => {
+    if (!time) return '';
+    try {
+      if (typeof time === 'string' && time.includes(':')) {
+        return time;
+      }
+      const d = new Date(time);
+      if (isNaN(d.getTime())) return String(time);
+      const locale = currentLanguageObj.bcp47 || 'en-US';
+      return new Intl.DateTimeFormat(locale, {
+        hour: 'numeric',
+        minute: 'numeric',
+        ...options
+      }).format(d);
+    } catch {
+      return String(time);
+    }
+  }, [currentLanguageObj]);
+
+  const formatNumber = useCallback((num, options = {}) => {
+    if (num === null || num === undefined || isNaN(Number(num))) return '';
+    try {
+      const locale = currentLanguageObj.bcp47 || 'en-US';
+      return new Intl.NumberFormat(locale, options).format(Number(num));
+    } catch {
+      return String(num);
+    }
+  }, [currentLanguageObj]);
+
   const value = useMemo(() => ({
     language,
     setLanguage,
     t,
+    formatDate,
+    formatTime,
+    formatNumber,
     languages: SUPPORTED_LANGUAGES,
     supportedLanguages: SUPPORTED_LANGUAGES,
     currentLanguageObj,
     bcp47: currentLanguageObj.bcp47,
     refreshTranslations: loadCmsTranslations
-  }), [language, setLanguage, t, currentLanguageObj, loadCmsTranslations]);
+  }), [language, setLanguage, t, formatDate, formatTime, formatNumber, currentLanguageObj, loadCmsTranslations]);
 
   return (
     <LanguageContext.Provider value={value}>

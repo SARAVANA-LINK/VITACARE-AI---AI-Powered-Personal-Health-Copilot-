@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, 
   Pill, 
@@ -13,15 +13,29 @@ import {
   Camera,
   Bot,
   Send,
+  Mic,
+  StopCircle,
+  X,
   Video,
   UserCheck,
   Bell,
   HeartHandshake,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Volume2,
+  Sun,
+  Moon,
+  Clock3,
+  Stethoscope,
+  Apple,
+  Building2,
+  BookOpen,
+  Lock,
+  Globe
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { useTranslation } from '../i18n/LanguageContext';
+import { useAccessibility } from '../context/AccessibilityContext';
 import { PillConsumptionTrackerModal } from '../components/PillConsumptionTrackerModal';
 
 export const DashboardView = ({ 
@@ -31,7 +45,8 @@ export const DashboardView = ({
   onViewReport, 
   setActiveView 
 }) => {
-  const { t } = useTranslation();
+  const { t, language, setLanguage, formatDate, formatNumber, bcp47 } = useTranslation();
+  const { speak } = useAccessibility();
   const [data, setData] = useState(null);
   const [cmsConfig, setCmsConfig] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +57,59 @@ export const DashboardView = ({
   const [copilotQuestion, setCopilotQuestion] = useState('');
   const [copilotAnswer, setCopilotAnswer] = useState(null);
   const [copilotLoading, setCopilotLoading] = useState(false);
+  const [isListeningVoice, setIsListeningVoice] = useState(false);
+  const [voiceQueryPreview, setVoiceQueryPreview] = useState('');
+  const dashRecRef = useRef(null);
+
+  const toggleVoiceRecording = () => {
+    if (isListeningVoice) {
+      if (dashRecRef.current) dashRecRef.current.stop();
+      setIsListeningVoice(false);
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = bcp47 || 'en-US';
+      recognition.interimResults = true;
+      recognition.onstart = () => setIsListeningVoice(true);
+      recognition.onresult = (event) => {
+        let text = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          text += event.results[i][0].transcript;
+        }
+        setVoiceQueryPreview(text);
+        setCopilotQuestion(text);
+      };
+      recognition.onerror = () => setIsListeningVoice(false);
+      recognition.onend = () => setIsListeningVoice(false);
+      dashRecRef.current = recognition;
+      recognition.start();
+    } catch (e) {
+      setIsListeningVoice(false);
+    }
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return t('goodMorning') || 'Good morning';
+    if (hour < 17) return t('goodAfternoon') || 'Good afternoon';
+    return t('goodEvening') || 'Good evening';
+  };
+
+  const formattedDate = formatDate(new Date(), {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  const handleReadDoseAloud = (med) => {
+    if (!med) return;
+    const text = `Your next scheduled medicine is ${med.medicineName}, ${med.dosage}, scheduled for ${med.scheduledTime}. Instructions: ${med.instructions || 'Take as prescribed with water.'}`;
+    speak(text, language);
+  };
 
   const fetchDashboard = async () => {
     try {
@@ -73,7 +141,7 @@ export const DashboardView = ({
     try {
       setCopilotLoading(true);
       setCopilotAnswer(null);
-      const res = await api.askAi(query, 'simple');
+      const res = await api.askAi(query, 'simple', language);
       setCopilotAnswer(res.reply);
     } catch (err) {
       console.error('Copilot query error:', err);
@@ -156,63 +224,79 @@ export const DashboardView = ({
         </div>
       )}
 
-      {/* 2. PERSONALIZED WELCOME & QUICK ACTIONS BANNER */}
+      {/* 2. SCENIC SUNRISE / SOFT BLUE WELCOME BANNER (Requirement 2.C) */}
       <div className="action-banner" style={{
-        background: 'linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #0ea5e9 100%)',
+        background: 'linear-gradient(135deg, #173B56 0%, #1597A5 65%, #38BDF8 100%)',
         borderRadius: 'var(--radius-xl)',
-        padding: '28px 32px',
+        padding: '30px 34px',
         color: '#fff',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: '20px',
-        boxShadow: '0 10px 25px -5px rgba(2, 132, 199, 0.3)'
+        boxShadow: '0 10px 25px -5px rgba(23, 59, 86, 0.25)',
+        border: '1.5px solid rgba(255, 255, 255, 0.2)',
+        position: 'relative',
+        overflow: 'hidden'
       }}>
-        <div style={{ maxWidth: '650px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+        {/* Subtle decorative medical graphic backdrop */}
+        <div style={{
+          position: 'absolute',
+          right: '-20px',
+          top: '-20px',
+          width: '260px',
+          height: '260px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(189, 237, 232, 0.22) 0%, rgba(21, 151, 165, 0) 70%)',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ maxWidth: '650px', position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <span style={{
               background: 'rgba(255,255,255,0.2)',
-              padding: '3px 10px',
+              padding: '4px 12px',
               borderRadius: '999px',
-              fontSize: '0.75rem',
+              fontSize: '0.88rem',
               fontWeight: 700,
-              letterSpacing: '0.04em'
+              letterSpacing: '0.04em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
             }}>
-              PATIENT HEALTH PORTAL
+              <Calendar size={14} /> {formattedDate}
             </span>
           </div>
-          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0 0 6px 0', color: '#fff' }}>
-            {t('welcomeUser', { name: user?.name || 'Patient' })}
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, margin: '0 0 8px 0', color: '#fff', lineHeight: 1.2 }}>
+            {getGreeting()}, {user?.name || 'Patient'}!
           </h2>
-          <p style={{ margin: 0, fontSize: '0.92rem', color: 'rgba(255,255,255,0.9)', lineHeight: 1.5 }}>
-            {t('tagline') || 'VitaCare AI • Clinical Adherence Supervision & Multilingual Personal Health Copilot'}
+          <p style={{ margin: 0, fontSize: '1.05rem', color: 'rgba(255,255,255,0.92)', lineHeight: 1.5 }}>
+            {t('welcomeBannerSubtitle') || "Your health journey matters. Here's what's happening today."}
           </p>
-          <div style={{ display: 'flex', gap: '16px', marginTop: '12px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)', flexWrap: 'wrap' }}>
-            <span>{t('bloodGroup')}: <strong>{user?.bloodGroup || 'Not specified'}</strong></span>
-            <span>{t('age')}: <strong>{user?.age ? `${user.age} yrs` : 'Not recorded'}</strong></span>
-            <span>Allergies: <strong>{profile?.allergies?.length || 'None'}</strong></span>
-            <span>Language: <strong>{(user?.preferredLanguage || 'en').toUpperCase()}</strong></span>
+          <div style={{ display: 'flex', gap: '16px', marginTop: '14px', fontSize: '0.92rem', color: 'rgba(255,255,255,0.9)', flexWrap: 'wrap' }}>
+            <span>{t('bloodGroup') || 'Blood Group'}: <strong>{user?.bloodGroup || 'Not specified'}</strong></span>
+            <span>{t('age') || 'Age'}: <strong>{user?.age ? `${user.age} yrs` : 'Not recorded'}</strong></span>
+            <span>{t('language') || 'Language'}: <strong>{(user?.preferredLanguage || language || 'en').toUpperCase()}</strong></span>
           </div>
         </div>
 
-        {/* Action Buttons for Elderly Users */}
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        {/* Large Action Buttons */}
+        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
           <button
             className="btn btn-primary btn-lg"
             onClick={onAddPrescription}
             id="btn-add-prescription-top"
             style={{
               background: '#ffffff',
-              color: 'var(--primary-dark)',
-              fontWeight: 700,
-              boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px'
+              color: 'var(--navy)',
+              fontWeight: 800,
+              boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+              gap: '8px',
+              borderRadius: '12px'
             }}
           >
-            <Plus size={18} /> {t('addPrescription')}
+            <Plus size={20} color="var(--primary)" /> {t('addPrescription') || 'Add Prescription'}
           </button>
           <button
             className="btn btn-secondary btn-lg"
@@ -221,118 +305,479 @@ export const DashboardView = ({
             style={{
               background: 'rgba(255,255,255,0.15)',
               color: '#ffffff',
-              border: '1px solid rgba(255,255,255,0.4)',
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px'
+              border: '2px solid rgba(255,255,255,0.4)',
+              fontWeight: 800,
+              gap: '8px',
+              borderRadius: '12px'
             }}
           >
-            <Plus size={18} /> {t('addHealthReport')}
+            <Plus size={20} /> {t('addHealthReport') || 'Add Report'}
           </button>
         </div>
       </div>
 
-      {/* 3. PROMINENT FEATURE: AI HEALTH COPILOT CARD */}
+      {/* 2B. 4 HEALTH OVERVIEW CARDS (Requirement 2.D) */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '16px'
+      }}>
+        {/* Card 1: Total Health Reports (Turquoise Accent) */}
+        <div 
+          className="card"
+          onClick={() => setActiveView && setActiveView('reports')}
+          style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            border: '1.5px solid #cffafe',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 2px 10px rgba(6, 182, 212, 0.06)'
+          }}
+          id="overview-card-reports"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+            <div style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              background: '#ecfeff',
+              color: '#0891b2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <FileText size={22} />
+            </div>
+            <ArrowUpRight size={18} color="#0891b2" />
+          </div>
+          <div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.1 }}>
+              {recentReports.length + recentPrescriptions.length}
+            </div>
+            <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', fontWeight: 600, marginTop: '4px' }}>
+              {t('cardTotalReports') || 'Total Health Reports'}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Today's Medicines (Violet Accent) */}
+        <div 
+          className="card"
+          onClick={() => setActiveView && setActiveView('medicines')}
+          style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            border: '1.5px solid #ede9fe',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 2px 10px rgba(139, 92, 246, 0.06)'
+          }}
+          id="overview-card-medicines"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+            <div style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              background: '#f5f3ff',
+              color: '#7c3aed',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Pill size={22} />
+            </div>
+            <ArrowUpRight size={18} color="#7c3aed" />
+          </div>
+          <div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.1 }}>
+              {todaySchedules.length}
+            </div>
+            <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', fontWeight: 600, marginTop: '4px' }}>
+              {t('cardTodayMedicines') || "Today's Medicines"}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Family Members (Blue Accent) */}
+        <div 
+          className="card"
+          onClick={() => setActiveView && setActiveView('guardians')}
+          style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            border: '1.5px solid #dbeafe',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 2px 10px rgba(59, 130, 246, 0.06)'
+          }}
+          id="overview-card-family"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+            <div style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              background: '#eff6ff',
+              color: '#2563eb',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Users size={22} />
+            </div>
+            <ArrowUpRight size={18} color="#2563eb" />
+          </div>
+          <div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.1 }}>
+              {guardians.length}
+            </div>
+            <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', fontWeight: 600, marginTop: '4px' }}>
+              {t('cardFamilyMembers') || 'Family Members'}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 4: Overall Health Overview (Green Accent) */}
+        <div 
+          className="card"
+          onClick={() => setActiveView && setActiveView('tracker')}
+          style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            border: '1.5px solid #d1fae5',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 2px 10px rgba(16, 185, 129, 0.06)'
+          }}
+          id="overview-card-health"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+            <div style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              background: '#ecfdf5',
+              color: '#059669',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Activity size={22} />
+            </div>
+            <ArrowUpRight size={18} color="#059669" />
+          </div>
+          <div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.1 }}>
+              {adherence?.adherencePercentage !== undefined ? `${adherence.adherencePercentage}%` : '100%'}
+            </div>
+            <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', fontWeight: 600, marginTop: '4px' }}>
+              {t('cardOverallHealth') || 'Overall Health Overview'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2B. CLEAN SLATE ONBOARDING BANNER FOR NEWLY REGISTERED PATIENT */}
+      {(todaySchedules.length === 0 && recentReports.length === 0 && recentPrescriptions.length === 0 && latestVitals.length === 0) && (
+        <div className="card" style={{
+          background: '#ffffff',
+          border: '1.5px solid var(--border-light)',
+          borderRadius: 'var(--radius-xl)',
+          padding: '24px 28px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+            <div style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              background: '#ecfdf5',
+              color: '#059669',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <Sparkles size={24} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--navy)', fontWeight: 800 }}>
+                {t('welcomeToVitacare') || 'Welcome to VitaCare AI'}
+              </h3>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {t('completeProfilePrompt') || 'Complete your profile when you are ready.'}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '18px' }}>
+            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>📋 Medical Records</div>
+              <strong style={{ fontSize: '0.85rem', color: 'var(--navy)' }}>{t('noRecordsYet') || 'No medical records added yet.'}</strong>
+            </div>
+            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>💊 Medications</div>
+              <strong style={{ fontSize: '0.85rem', color: 'var(--navy)' }}>{t('noMedicationsYet') || 'No medications added yet.'}</strong>
+            </div>
+            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>🗓️ Appointments</div>
+              <strong style={{ fontSize: '0.85rem', color: 'var(--navy)' }}>{t('noAppointmentsYet') || 'No appointments scheduled yet.'}</strong>
+            </div>
+            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>💬 Conversations</div>
+              <strong style={{ fontSize: '0.85rem', color: 'var(--navy)' }}>{t('noConversationsYet') || 'No conversations yet.'}</strong>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', borderTop: '1px solid var(--border-light)', paddingTop: '14px' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              {t('addFirstRecord') || 'Add your first record when needed.'}
+            </span>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="btn btn-primary btn-sm" onClick={onAddPrescription}>
+                <Plus size={14} /> {t('addPrescription') || 'Add Prescription'}
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={onAddReport}>
+                <Plus size={14} /> {t('addHealthReport') || 'Add Report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. AI HEALTH ASSISTANT CARD (Requirement 2.G) */}
       <div className="card" style={{
-        background: 'linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)',
-        border: '1.5px solid #bae6fd',
+        background: 'linear-gradient(135deg, #ffffff 0%, #F0FBFB 100%)',
+        border: '1.5px solid var(--secondary-accent)',
         padding: '24px 28px',
         borderRadius: 'var(--radius-xl)',
-        boxShadow: '0 4px 20px rgba(2, 132, 199, 0.08)'
+        boxShadow: '0 4px 20px rgba(21, 151, 165, 0.08)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+              width: '44px',
+              height: '44px',
+              borderRadius: '14px',
+              background: 'linear-gradient(135deg, #1597A5 0%, #117C88 100%)',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)'
+              boxShadow: '0 4px 12px rgba(21, 151, 165, 0.3)'
             }}>
               <Bot size={24} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 800 }}>
-                VitaCare AI Health Copilot
+              <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 800 }}>
+                {t('aiHealthAssistantHeading') || 'AI Health Assistant'}
               </h3>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Clinically grounded in your verified records & prescriptions
+              <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                {t('aiHealthAssistantWelcome') || 'Hello! How can I assist with your health records and medication today?'}
               </span>
             </div>
           </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="badge badge-green" style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <Sparkles size={12} /> GEMINI 3.5 ACTIVE
-            </span>
+            {/* Language Selector for English, Tamil, Tanglish, Hindi, Telugu (Requirement 2.G) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ffffff', border: '1px solid var(--border-light)', borderRadius: '999px', padding: '4px 12px' }}>
+              <Globe size={14} color="var(--primary)" />
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                style={{ border: 'none', background: 'transparent', fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy)', cursor: 'pointer', outline: 'none' }}
+                title="Select Language"
+              >
+                <option value="en">🇬🇧 English</option>
+                <option value="ta">🇮🇳 தமிழ்</option>
+                <option value="tanglish">🇮🇳 Tanglish (தமிழ்)</option>
+                <option value="hi">🇮🇳 हिन्दी</option>
+                <option value="te">🇮🇳 తెలుగు</option>
+              </select>
+            </div>
+
             <button
               className="btn btn-secondary btn-sm"
-              onClick={() => setActiveView('copilot')}
-              style={{ fontSize: '0.8rem' }}
+              onClick={() => setActiveView && setActiveView('copilot')}
+              style={{ fontSize: '0.8rem', borderRadius: '999px' }}
             >
-              Open Full Chat <ArrowUpRight size={14} />
+              {t('openFullChat') || 'Open Full Chat'} <ArrowUpRight size={14} />
             </button>
           </div>
         </div>
 
         {/* Input Bar */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
           <input
             type="text"
             className="input-field"
             value={copilotQuestion}
             onChange={(e) => setCopilotQuestion(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleAskCopilot(); }}
-            placeholder="Ask about medications, test reference ranges, or health trends..."
-            style={{ flex: 1, padding: '12px 16px', fontSize: '0.92rem', borderRadius: 'var(--radius-lg)' }}
+            placeholder={isListeningVoice ? "Listening to your voice... Speak now" : (t('askCopilotPlaceholder') || "Ask about medications, test reference ranges, or health trends...")}
+            style={{ flex: 1, padding: '12px 18px', fontSize: '0.92rem', borderRadius: 'var(--radius-lg)', border: '1.5px solid var(--border-light)', background: '#fff' }}
           />
+          <button
+            type="button"
+            className={`btn btn-secondary ${isListeningVoice ? 'active' : ''}`}
+            onClick={toggleVoiceRecording}
+            style={{
+              padding: '0 16px',
+              borderRadius: 'var(--radius-lg)',
+              background: isListeningVoice ? '#fee2e2' : undefined,
+              borderColor: isListeningVoice ? '#fca5a5' : undefined,
+              color: isListeningVoice ? '#dc2626' : undefined
+            }}
+            title={isListeningVoice ? "Stop speaking" : "Speak voice question"}
+          >
+            <Mic size={18} />
+          </button>
           <button
             className="btn btn-primary"
             onClick={() => handleAskCopilot()}
             disabled={copilotLoading || !copilotQuestion.trim()}
-            style={{ padding: '0 24px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            style={{ padding: '0 24px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '8px', borderRadius: 'var(--radius-lg)' }}
           >
-            <Send size={16} /> {copilotLoading ? 'Thinking...' : 'Ask'}
+            <Send size={16} /> {copilotLoading ? (t('thinking') || 'Thinking...') : (t('ask') || 'Ask')}
           </button>
         </div>
 
-        {/* Quick Consultation Prompt Chips */}
+        {/* Voice Question Display Box - Directly BELOW the Text Bar */}
+        {(isListeningVoice || (voiceQueryPreview && voiceQueryPreview.trim().length > 0)) && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: isListeningVoice ? '#fef2f2' : 'var(--primary-subtle)',
+              border: `1.5px solid ${isListeningVoice ? '#fca5a5' : 'var(--secondary-accent)'}`,
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+              <div style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '50%',
+                background: isListeningVoice ? '#dc2626' : 'var(--primary)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <Mic size={15} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: isListeningVoice ? '#dc2626' : 'var(--primary-dark)' }}>
+                  {isListeningVoice ? '🔴 LISTENING (Speak now)...' : '🎙️ VOICE QUESTION'}
+                </div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--navy)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  "{voiceQueryPreview || copilotQuestion}"
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+              {isListeningVoice ? (
+                <button
+                  type="button"
+                  onClick={toggleVoiceRecording}
+                  className="btn btn-secondary btn-sm"
+                  style={{ minHeight: '30px', padding: '2px 8px', fontSize: '0.78rem', color: '#dc2626' }}
+                >
+                  <StopCircle size={14} /> Stop
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (copilotQuestion.trim()) {
+                        handleAskCopilot(copilotQuestion.trim());
+                        setVoiceQueryPreview('');
+                      }
+                    }}
+                    className="btn btn-primary btn-sm"
+                    style={{ minHeight: '30px', padding: '2px 10px', fontSize: '0.78rem' }}
+                  >
+                    <Send size={13} /> Ask
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVoiceQueryPreview('');
+                      setCopilotQuestion('');
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ minHeight: '30px', padding: '2px 8px' }}
+                    title="Clear"
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Suggested Question Chips (Requirement 2.G) */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
             type="button"
             className="btn btn-sm"
-            onClick={() => { setCopilotQuestion('What medicines are scheduled for today?'); handleAskCopilot('What medicines are scheduled for today?'); }}
-            style={{ background: '#fff', border: '1px solid #bae6fd', color: '#0369a1', fontSize: '0.78rem', borderRadius: '999px', padding: '6px 14px' }}
+            onClick={() => {
+              const q = t('promptChipExplainReport') || 'Explain my latest blood report';
+              setCopilotQuestion(q);
+              handleAskCopilot(q);
+            }}
+            style={{ background: '#fff', border: '1px solid var(--secondary-accent)', color: 'var(--navy)', fontSize: '0.8rem', borderRadius: '999px', padding: '6px 14px', fontWeight: 600 }}
           >
-            💊 Today's Medicines
+            🔬 {t('promptChipExplainReport') || 'Explain my latest blood report'}
           </button>
           <button
             type="button"
             className="btn btn-sm"
-            onClick={() => { setCopilotQuestion('Explain my latest blood glucose and BP readings'); handleAskCopilot('Explain my latest blood glucose and BP readings'); }}
-            style={{ background: '#fff', border: '1px solid #bae6fd', color: '#0369a1', fontSize: '0.78rem', borderRadius: '999px', padding: '6px 14px' }}
+            onClick={() => {
+              const q = t('promptChipFollowSchedule') || 'How should I follow my prescribed medicine schedule?';
+              setCopilotQuestion(q);
+              handleAskCopilot(q);
+            }}
+            style={{ background: '#fff', border: '1px solid var(--secondary-accent)', color: 'var(--navy)', fontSize: '0.8rem', borderRadius: '999px', padding: '6px 14px', fontWeight: 600 }}
           >
-            🩸 Latest Glucose & BP
+            💊 {t('promptChipFollowSchedule') || 'How should I follow my prescribed medicine schedule?'}
           </button>
           <button
             type="button"
             className="btn btn-sm"
-            onClick={() => { setCopilotQuestion('Summarize my uploaded lab reports'); handleAskCopilot('Summarize my uploaded lab reports'); }}
-            style={{ background: '#fff', border: '1px solid #bae6fd', color: '#0369a1', fontSize: '0.78rem', borderRadius: '999px', padding: '6px 14px' }}
+            onClick={() => {
+              const q = t('promptChipCompareReports') || 'Compare my recent and previous reports';
+              setCopilotQuestion(q);
+              handleAskCopilot(q);
+            }}
+            style={{ background: '#fff', border: '1px solid var(--secondary-accent)', color: 'var(--navy)', fontSize: '0.8rem', borderRadius: '999px', padding: '6px 14px', fontWeight: 600 }}
           >
-            🔬 Lab Report Summary
-          </button>
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={() => { setCopilotQuestion('What questions should I prepare for my next doctor visit?'); handleAskCopilot('What questions should I prepare for my next doctor visit?'); }}
-            style={{ background: '#fff', border: '1px solid #bae6fd', color: '#0369a1', fontSize: '0.78rem', borderRadius: '999px', padding: '6px 14px' }}
-          >
-            🩺 Doctor Questions Prep
+            📊 {t('promptChipCompareReports') || 'Compare my recent and previous reports'}
           </button>
         </div>
 
@@ -357,85 +802,273 @@ export const DashboardView = ({
         )}
       </div>
 
-      {/* 4. NEXT SCHEDULED DOSE / REAL-TIME TRACKING HUD TRIGGER */}
+      {/* 4. COMPREHENSIVE CARE ECOSYSTEM SERVICES */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '14px'
+      }}>
+        {/* Symptom Guidance */}
+        <div
+          className="card"
+          onClick={() => setActiveView('symptoms')}
+          style={{
+            cursor: 'pointer',
+            padding: '16px',
+            borderRadius: '16px',
+            border: '1px solid var(--border-light)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}
+        >
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'var(--primary-subtle)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Stethoscope size={22} />
+          </div>
+          <div>
+            <strong style={{ fontSize: '0.92rem', color: 'var(--navy)', display: 'block' }}>Symptom Guidance</strong>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Triage & Doctor Checklist</span>
+          </div>
+        </div>
+
+        {/* Doctor Appointments */}
+        <div
+          className="card"
+          onClick={() => setActiveView('appointments')}
+          style={{
+            cursor: 'pointer',
+            padding: '16px',
+            borderRadius: '16px',
+            border: '1px solid var(--border-light)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}
+        >
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Calendar size={22} />
+          </div>
+          <div>
+            <strong style={{ fontSize: '0.92rem', color: 'var(--navy)', display: 'block' }}>Appointments</strong>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Clinic Visits & Reminders</span>
+          </div>
+        </div>
+
+        {/* Wellness & Nutrition */}
+        <div
+          className="card"
+          onClick={() => setActiveView('wellness')}
+          style={{
+            cursor: 'pointer',
+            padding: '16px',
+            borderRadius: '16px',
+            border: '1px solid var(--border-light)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}
+        >
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Apple size={22} />
+          </div>
+          <div>
+            <strong style={{ fontSize: '0.92rem', color: 'var(--navy)', display: 'block' }}>Wellness & Nutrition</strong>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Hydration & BMI Calculator</span>
+          </div>
+        </div>
+
+        {/* Nearby Hospitals */}
+        <div
+          className="card"
+          onClick={() => setActiveView('hospitals')}
+          style={{
+            cursor: 'pointer',
+            padding: '16px',
+            borderRadius: '16px',
+            border: '1px solid var(--border-light)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}
+        >
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Building2 size={22} />
+          </div>
+          <div>
+            <strong style={{ fontSize: '0.92rem', color: 'var(--navy)', display: 'block' }}>Nearby Hospitals</strong>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>24/7 ER & Trauma Centers</span>
+          </div>
+        </div>
+
+        {/* Medical Dictionary */}
+        <div
+          className="card"
+          onClick={() => setActiveView('dictionary')}
+          style={{
+            cursor: 'pointer',
+            padding: '16px',
+            borderRadius: '16px',
+            border: '1px solid var(--border-light)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}
+        >
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#f5f3ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <BookOpen size={22} />
+          </div>
+          <div>
+            <strong style={{ fontSize: '0.92rem', color: 'var(--navy)', display: 'block' }}>Medical Dictionary</strong>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Search Tests & Drugs</span>
+          </div>
+        </div>
+
+        {/* Profile & Privacy */}
+        <div
+          className="card"
+          onClick={() => setActiveView('privacy')}
+          style={{
+            cursor: 'pointer',
+            padding: '16px',
+            borderRadius: '16px',
+            border: '1px solid var(--border-light)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}
+        >
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'var(--bg-alt)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Lock size={22} />
+          </div>
+          <div>
+            <strong style={{ fontSize: '0.92rem', color: 'var(--navy)', display: 'block' }}>Profile & Privacy</strong>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Export Data & Consents</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. LARGE HERO NEXT MEDICINE CARD — ELDER ACCESSIBLE */}
       {nextMed ? (
-        <div className="next-med-card" style={{
-          background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)',
-          border: '1.5px solid #86efac',
-          borderRadius: 'var(--radius-xl)',
-          padding: '20px 24px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px',
-          boxShadow: '0 4px 16px rgba(22, 163, 74, 0.08)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div
+          className="next-med-card"
+          style={{
+            background: 'linear-gradient(135deg, #ffffff 0%, #f0fdfa 100%)',
+            border: '2px solid var(--teal)',
+            borderRadius: 'var(--radius-xl)',
+            padding: '28px 32px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '24px',
+            boxShadow: '0 8px 24px rgba(15, 157, 138, 0.12)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', maxWidth: '680px' }}>
             <div style={{
-              width: '54px',
-              height: '54px',
-              borderRadius: '16px',
-              background: '#16a34a',
+              width: '68px',
+              height: '68px',
+              borderRadius: '20px',
+              background: 'var(--teal)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#fff',
-              boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)'
+              boxShadow: '0 6px 16px rgba(15, 157, 138, 0.3)',
+              flexShrink: 0
             }}>
-              <Pill size={28} />
+              <Pill size={36} />
             </div>
             <div>
-              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                UPCOMING SCHEDULED DOSE
-              </span>
-              <h3 style={{ fontSize: '1.25rem', color: 'var(--navy)', margin: '2px 0 4px 0', fontWeight: 800 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--teal-dark)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  YOUR NEXT MEDICINE
+                </span>
+                <span className="badge badge-orange" style={{ fontSize: '0.8rem', padding: '3px 8px' }}>
+                  ⏳ PENDING INTAKE
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleReadDoseAloud(nextMed)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ minHeight: '36px', padding: '4px 10px', fontSize: '0.85rem', gap: '4px' }}
+                  title="Read medicine details aloud"
+                  aria-label="Read medicine details aloud"
+                >
+                  <Volume2 size={16} color="var(--primary)" /> Read Aloud
+                </button>
+              </div>
+
+              <h3 style={{ fontSize: '1.6rem', color: 'var(--navy)', margin: '2px 0 6px 0', fontWeight: 800 }}>
                 {nextMed.medicineName}
               </h3>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-                <span>Dose: <strong>{nextMed.dosage}</strong></span>
-                <span>Time: <strong>{nextMed.scheduledTime}</strong></span>
-                <span>Status: <strong style={{ color: '#d97706' }}>PENDING INTAKE</strong></span>
+
+              <p style={{ fontSize: '1.1rem', color: 'var(--text-primary)', margin: '0 0 10px 0', fontWeight: 600 }}>
+                Instructions: {nextMed.instructions || 'Take 1 dose with a full glass of water after meals.'}
+              </p>
+
+              <div style={{ fontSize: '1rem', color: 'var(--text-secondary)', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                <span>Prescribed Dose: <strong style={{ color: 'var(--navy)' }}>{nextMed.dosage}</strong></span>
+                <span>Scheduled For: <strong style={{ color: 'var(--primary)', fontSize: '1.15rem' }}>⏰ {nextMed.scheduledTime}</strong></span>
               </div>
             </div>
           </div>
-          <div>
+
+          {/* Action Buttons for Dose */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: '220px' }}>
             <button
-              className="btn btn-primary btn-lg"
+              className="btn btn-success btn-lg"
               onClick={() => setTrackingTargetSchedule(nextMed)}
               id="btn-track-pill-next"
               style={{
-                background: '#16a34a',
-                borderColor: '#16a34a',
-                padding: '12px 24px',
-                fontWeight: 700,
+                padding: '16px 28px',
+                fontWeight: 800,
+                fontSize: '1.15rem',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 14px rgba(22, 163, 74, 0.35)'
+                justifyContent: 'center',
+                gap: '10px',
+                boxShadow: '0 4px 16px rgba(15, 157, 138, 0.35)'
               }}
             >
-              <Camera size={18} /> {t('trackPillIntake') || 'Track Pill Intake'}
+              <Camera size={22} /> Mark as Taken
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => onOpenMedicineReminder(nextMed)}
+              style={{ minHeight: '46px', fontWeight: 700, gap: '6px' }}
+            >
+              <Clock3 size={18} /> Remind Me Later
             </button>
           </div>
         </div>
       ) : (
         <div style={{
           background: '#ffffff',
-          border: '1px dashed var(--border-light)',
+          border: '2px dashed var(--border-light)',
           borderRadius: 'var(--radius-xl)',
-          padding: '18px 24px',
+          padding: '32px 28px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          color: 'var(--text-muted)'
+          flexWrap: 'wrap',
+          gap: '16px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <CheckCircle size={22} color="var(--status-green)" />
-            <span style={{ fontWeight: 600, color: 'var(--navy)' }}>All scheduled doses for today are completed and verified!</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--teal-light)', color: 'var(--teal)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle size={28} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.25rem', color: 'var(--navy)', margin: '0 0 4px 0', fontWeight: 800 }}>
+                All Doses Completed for Now!
+              </h3>
+              <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
+                You have no pending medications right now. Rest well or add a new prescription if prescribed.
+              </p>
+            </div>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={() => setActiveView('medicines')}>
-            {t('viewAllMedicines') || 'Manage Medicines'}
+          <button className="btn btn-secondary btn-lg" onClick={() => setActiveView('medicines')}>
+            {t('viewAllMedicines') || 'View Medicines'}
           </button>
         </div>
       )}
@@ -497,59 +1130,100 @@ export const DashboardView = ({
 
           {/* Today's Medicine Schedule */}
           <div className="card">
-            <div className="card-header">
-              <h3 className="card-title">
-                <Pill size={20} color="var(--primary)" />
-                {t('todaysDoses') || "Today's Medicine Schedule"}
-              </h3>
+            <div className="card-header" style={{ alignItems: 'flex-start' }}>
+              <div>
+                <h3 className="card-title" style={{ fontSize: '1.35rem' }}>
+                  <Pill size={22} color="var(--primary)" />
+                  {t('todaysDoses') || "Today's Medicine Schedule"}
+                </h3>
+                {todaySchedules.length > 0 && (
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                    Completed: <strong>{todaySchedules.filter(s => s.status === 'taken' || s.status === 'Verified').length} of {todaySchedules.length} doses taken</strong> ({Math.round((todaySchedules.filter(s => s.status === 'taken' || s.status === 'Verified').length / todaySchedules.length) * 100)}%)
+                  </p>
+                )}
+              </div>
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={() => setActiveView('medicines')}
+                style={{ fontWeight: 700 }}
               >
-                Manage Schedule <ArrowUpRight size={14} />
+                Manage Schedule <ArrowUpRight size={16} />
               </button>
             </div>
 
+            {/* Dose Progress Bar */}
+            {todaySchedules.length > 0 && (
+              <div style={{ padding: '0 20px 16px 20px' }}>
+                <div style={{ width: '100%', height: '10px', background: 'var(--bg-alt)', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${(todaySchedules.filter(s => s.status === 'taken' || s.status === 'Verified').length / todaySchedules.length) * 100}%`,
+                      background: 'var(--teal)',
+                      borderRadius: '999px',
+                      transition: 'width 0.3s ease'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
             {todaySchedules.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-muted)' }}>
-                <Pill size={36} style={{ margin: '0 auto 10px auto', opacity: 0.35 }} />
-                <p style={{ fontWeight: 600, color: 'var(--navy)' }}>No medicines scheduled for today.</p>
-                <p style={{ fontSize: '0.82rem', marginBottom: '14px' }}>Add a prescription or medication regimen to activate adherence tracking.</p>
-                <button className="btn btn-primary btn-sm" onClick={onAddPrescription}>
-                  + Add Prescription
+              <div style={{ textAlign: 'center', padding: '40px 24px', color: 'var(--text-muted)' }}>
+                <Pill size={44} style={{ margin: '0 auto 12px auto', opacity: 0.4 }} />
+                <h4 style={{ fontSize: '1.2rem', color: 'var(--navy)', marginBottom: '6px' }}>No medicines scheduled for today</h4>
+                <p style={{ fontSize: '0.95rem', marginBottom: '18px', maxWidth: '420px', margin: '0 auto 18px auto' }}>
+                  When your doctor prescribes a new medication, add it here to receive timely reminders and tracking.
+                </p>
+                <button className="btn btn-primary" onClick={onAddPrescription}>
+                  <Plus size={18} /> Add New Prescription
                 </button>
               </div>
             ) : (
-              <div>
-                {todaySchedules.map((med) => (
-                  <div key={med.id} className={`med-schedule-item ${med.status}`}>
-                    <div className="med-schedule-time">
-                      <Clock size={14} style={{ display: 'inline', marginRight: '4px' }} />
-                      {med.scheduledTime}
-                    </div>
-                    <div className="med-schedule-info">
-                      <div className="med-schedule-name">{med.medicineName}</div>
-                      <div className="med-schedule-dose">
-                        {med.dosage} • {med.instructions || 'After food'}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {todaySchedules.map((med) => {
+                  const isVerified = med.status === 'taken' || med.status === 'Verified';
+                  return (
+                    <div
+                      key={med.id}
+                      className={`med-schedule-item ${med.status}`}
+                      style={{
+                        padding: '16px 20px',
+                        border: `2px solid ${isVerified ? 'var(--status-green-border)' : 'var(--border-light)'}`,
+                        borderRadius: 'var(--radius-lg)',
+                        background: isVerified ? 'var(--status-green-bg)' : '#ffffff'
+                      }}
+                    >
+                      <div className="med-schedule-time" style={{ fontSize: '1.1rem', fontWeight: 800, color: isVerified ? 'var(--teal-dark)' : 'var(--navy)' }}>
+                        <Clock size={18} style={{ display: 'inline', marginRight: '6px' }} />
+                        {med.scheduledTime}
+                      </div>
+                      <div className="med-schedule-info">
+                        <div className="med-schedule-name" style={{ fontSize: '1.15rem', fontWeight: 700 }}>
+                          {med.medicineName}
+                        </div>
+                        <div className="med-schedule-dose" style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                          {med.dosage} • {med.instructions || 'After food'}
+                        </div>
+                      </div>
+                      <div>
+                        {isVerified ? (
+                          <span className="badge badge-green" style={{ fontSize: '0.85rem', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <CheckCircle size={16} /> TAKEN - VERIFIED
+                          </span>
+                        ) : (
+                          <button
+                            className="btn btn-success"
+                            onClick={() => setTrackingTargetSchedule(med)}
+                            style={{ minHeight: '44px', padding: '8px 18px', fontWeight: 700, gap: '6px', fontSize: '0.95rem' }}
+                          >
+                            <Camera size={16} /> Mark as Taken
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div>
-                      {med.status === 'taken' || med.status === 'Verified' ? (
-                        <span className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <CheckCircle size={12} /> VERIFIED
-                        </span>
-                      ) : (
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={() => setTrackingTargetSchedule(med)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
-                        >
-                          <Camera size={13} /> {t('trackPillIntake') || 'Track Intake'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -604,14 +1278,65 @@ export const DashboardView = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Adherence, Care Connect, Guardian Alerts, Recent Reports */}
+        {/* RIGHT COLUMN: Health Insights, Adherence, Care Connect, Guardian Alerts, Recent Reports */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Health Insights Card (Requirement 2.I) */}
+          <div className="card" style={{ border: '1.5px solid var(--secondary-accent)', borderRadius: '16px' }}>
+            <div className="card-header">
+              <h3 className="card-title" style={{ fontSize: '1.15rem' }}>
+                <Sparkles size={19} color="var(--primary)" />
+                {t('healthInsightsTitle') || 'Health Insights'}
+              </h3>
+              <span className="badge badge-green" style={{ fontSize: '0.72rem' }}>
+                {t('verified') || 'VERIFIED'}
+              </span>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 14px 0' }}>
+              {t('healthInsightsSubtitle') || 'Comparable measurements, historical trends, and upcoming care tasks'}
+            </p>
+
+            {summaryPoints.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {summaryPoints.map((pt, idx) => (
+                  <div key={idx} style={{
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    background: 'var(--bg-alt)',
+                    fontSize: '0.86rem',
+                    color: 'var(--navy)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
+                    <span>{pt}</span>
+                  </div>
+                ))}
+              </div>
+            ) : latestVitals.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ padding: '10px 14px', borderRadius: '12px', background: 'var(--primary-subtle)', fontSize: '0.86rem', color: 'var(--navy)' }}>
+                  <strong>{latestVitals[0].metricName}:</strong> {latestVitals[0].value} {latestVitals[0].unit} ({latestVitals[0].statusIndicator})
+                </div>
+                {todaySchedules.length > 0 && (
+                  <div style={{ padding: '10px 14px', borderRadius: '12px', background: 'var(--bg-alt)', fontSize: '0.86rem', color: 'var(--navy)' }}>
+                    <strong>Upcoming:</strong> {todaySchedules.filter(s => s.status !== 'taken' && s.status !== 'Verified').length} pending medication doses today.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '0.84rem' }}>
+                {t('noInsightsYet') || 'Upload lab reports or track vitals to generate automated health comparisons.'}
+              </div>
+            )}
+          </div>
+
           {/* Adherence Card */}
           <div className="card">
             <div className="card-header">
               <h3 className="card-title">
                 <CheckCircle size={18} color="var(--primary)" />
-                Medication Adherence
+                {t('medicationAdherence') || 'Medication Adherence'}
               </h3>
               <span className="badge badge-green">WEEKLY</span>
             </div>
@@ -731,25 +1456,36 @@ export const DashboardView = ({
             )}
           </div>
 
-          {/* Recent Reports & Prescriptions */}
-          <div className="card">
+          {/* Recent Health Reports (Requirement 2.F) */}
+          <div className="card" style={{ borderRadius: '16px', border: '1.5px solid var(--border-light)' }}>
             <div className="card-header">
-              <h3 className="card-title">
+              <h3 className="card-title" style={{ fontSize: '1.15rem' }}>
                 <FileText size={18} color="var(--primary)" />
-                {t('healthReports') || 'Reports & Prescriptions'}
+                {t('recentHealthReports') || 'Recent Health Reports'}
               </h3>
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={() => setActiveView('reports')}
+                style={{ borderRadius: '999px', fontSize: '0.8rem', gap: '4px' }}
               >
-                All Documents
+                {t('actionViewAll') || 'View All'} <ArrowUpRight size={14} />
               </button>
             </div>
 
             {recentReports.length === 0 && recentPrescriptions.length === 0 ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px' }}>
-                No medical reports or prescriptions uploaded yet.
-              </p>
+              <div style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--text-muted)' }}>
+                <FileText size={36} style={{ margin: '0 auto 8px auto', opacity: 0.35 }} />
+                <p style={{ margin: 0, fontSize: '0.86rem' }}>
+                  {t('noReportsUploaded') || 'No medical reports uploaded yet.'}
+                </p>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={onAddReport}
+                  style={{ marginTop: '10px', borderRadius: '8px' }}
+                >
+                  <Plus size={14} /> {t('addHealthReport') || 'Add Report'}
+                </button>
+              </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {recentReports.map(rep => (
@@ -757,25 +1493,58 @@ export const DashboardView = ({
                     key={rep.id}
                     onClick={() => onViewReport ? onViewReport(rep) : setActiveView('reports')}
                     style={{
-                      padding: '10px 14px',
-                      borderRadius: 'var(--radius-md)',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
                       border: '1px solid var(--border-light)',
                       cursor: 'pointer',
-                      background: '#fff',
+                      background: '#ffffff',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between'
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      transition: 'all 0.18s ease'
                     }}
                   >
-                    <div>
-                      <strong style={{ fontSize: '0.88rem', color: 'var(--navy)' }}>{rep.reportType}</strong>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {rep.labName} • {rep.reportDate}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        background: 'var(--primary-subtle)',
+                        color: 'var(--primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <FileText size={18} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <strong style={{ fontSize: '0.88rem', color: 'var(--navy)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {rep.reportType || rep.title || 'Laboratory Diagnostic Report'}
+                        </strong>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {rep.labName ? `${rep.labName} • ` : ''}{rep.reportDate || 'Recent'}
+                        </div>
                       </div>
                     </div>
-                    <span className="badge badge-blue" style={{ fontSize: '0.65rem' }}>
-                      REPORT
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <span className="badge badge-green" style={{ fontSize: '0.68rem', padding: '3px 8px' }}>
+                        {t('verified') || 'VERIFIED'}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '3px 8px', fontSize: '0.74rem' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onViewReport) onViewReport(rep);
+                          else setActiveView('reports');
+                        }}
+                      >
+                        {t('actionViewDetails') || 'View Details'}
+                      </button>
+                    </div>
                   </div>
                 ))}
 
@@ -784,23 +1553,41 @@ export const DashboardView = ({
                     key={rx.id}
                     onClick={() => setActiveView('medicines')}
                     style={{
-                      padding: '10px 14px',
-                      borderRadius: 'var(--radius-md)',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
                       border: '1px solid var(--border-light)',
                       cursor: 'pointer',
-                      background: '#fff',
+                      background: '#ffffff',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between'
+                      justifyContent: 'space-between',
+                      gap: '12px'
                     }}
                   >
-                    <div>
-                      <strong style={{ fontSize: '0.88rem', color: 'var(--navy)' }}>{rx.doctorName ? `Rx by Dr. ${rx.doctorName}` : 'Prescription Order'}</strong>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {rx.createdAt ? new Date(rx.createdAt).toLocaleDateString() : 'Active'}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        background: '#ecfdf5',
+                        color: '#059669',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Pill size={18} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <strong style={{ fontSize: '0.88rem', color: 'var(--navy)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {rx.doctorName ? `Rx by Dr. ${rx.doctorName}` : 'Prescription Order'}
+                        </strong>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {rx.createdAt ? new Date(rx.createdAt).toLocaleDateString() : 'Active'}
+                        </div>
                       </div>
                     </div>
-                    <span className="badge badge-green" style={{ fontSize: '0.65rem' }}>
+                    <span className="badge badge-green" style={{ fontSize: '0.68rem', padding: '3px 8px' }}>
                       PRESCRIPTION
                     </span>
                   </div>
@@ -817,6 +1604,30 @@ export const DashboardView = ({
         schedule={trackingTargetSchedule}
         onClose={() => setTrackingTargetSchedule(null)}
         onVerified={() => {
+          if (trackingTargetSchedule) {
+            const targetId = trackingTargetSchedule.id;
+            setData(prev => {
+              if (!prev || !prev.todaySchedules) return prev;
+              const updatedSchedules = prev.todaySchedules.map(s => {
+                if (s.id === targetId || s.scheduleId === targetId || (s.scheduleId && trackingTargetSchedule.scheduleId && s.scheduleId === trackingTargetSchedule.scheduleId && s.scheduledTime === trackingTargetSchedule.scheduledTime)) {
+                  return {
+                    ...s,
+                    status: 'Verified',
+                    rawStatus: 'VERIFIED',
+                    taken: true,
+                    isVerified: true
+                  };
+                }
+                return s;
+              });
+              const nextPending = updatedSchedules.find(s => s.status !== 'Verified' && s.status !== 'taken');
+              return {
+                ...prev,
+                todaySchedules: updatedSchedules,
+                nextMedicine: nextPending || updatedSchedules[0]
+              };
+            });
+          }
           fetchDashboard();
         }}
         onRefused={() => {

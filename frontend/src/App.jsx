@@ -12,6 +12,8 @@ import { PrescriptionUploadModal } from './components/PrescriptionUploadModal';
 import { ReportUploadModal } from './components/ReportUploadModal';
 import { CareConnectModal } from './components/CareConnectModal';
 import { MedicineReminderModal } from './components/MedicineReminderModal';
+import { AccessibilitySettingsModal } from './components/AccessibilitySettingsModal';
+import { Home, Pill, Camera, FileText, Sliders, Bot, User } from 'lucide-react';
 
 // Views
 import { AuthView } from './views/AuthView';
@@ -28,6 +30,13 @@ import { AiCopilotView } from './views/AiCopilotView';
 import { GuardianView } from './views/GuardianView';
 import { AlertHistoryView } from './views/AlertHistoryView';
 import { AdminPanelView } from './views/AdminPanelView';
+import { SymptomGuidanceView } from './views/SymptomGuidanceView';
+import { AppointmentsView } from './views/AppointmentsView';
+import { MedicalDictionaryView } from './views/MedicalDictionaryView';
+import { HealthLibraryView } from './views/HealthLibraryView';
+import { HospitalsFinderView } from './views/HospitalsFinderView';
+import { WellnessNutritionView } from './views/WellnessNutritionView';
+import { PrivacySettingsView } from './views/PrivacySettingsView';
 
 export function App() {
   const { user, isLoading, isAdmin, logout } = useAuth();
@@ -55,6 +64,7 @@ export function App() {
   const [isCareConnectOpen, setIsCareConnectOpen] = useState(false);
   const [isSosModalOpen, setIsSosModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isAccessibilityOpen, setIsAccessibilityOpen] = useState(false);
   const [activeReminderSchedule, setActiveReminderSchedule] = useState(null);
 
   // Unread notifications & sample loading
@@ -69,7 +79,11 @@ export function App() {
       setPortalMode(mode);
 
       const hash = window.location.hash.replace('#/', '').replace('#', '').toLowerCase();
-      const validUserViews = ['dashboard', 'reports', 'compare', 'tracker', 'trends', 'medicines', 'careconnect', 'adherence', 'timeline', 'copilot', 'guardians', 'alerts'];
+      const validUserViews = [
+        'dashboard', 'reports', 'compare', 'tracker', 'trends', 'medicines', 
+        'careconnect', 'adherence', 'timeline', 'copilot', 'guardians', 'alerts',
+        'symptoms', 'appointments', 'dictionary', 'library', 'hospitals', 'wellness', 'privacy'
+      ];
       
       if (mode === 'admin') {
         setActiveView('admin');
@@ -223,7 +237,7 @@ export function App() {
   const viewTitles = {
     dashboard: t('dashboard') || 'Personal Health Overview',
     tracker: t('healthTracker') || 'Unified Health Tracker & Intake Verification',
-    medicines: t('medicines') || 'Medication Regimen & Escalation',
+    medicines: t('medicines') || 'Medication Regimen & Reminders',
     careconnect: t('careConnect') || 'CareConnect — Live Video Supervision',
     reports: t('reports') || 'Diagnostic Lab Reports & OCR Archives',
     compare: t('compare') || 'Compare Diagnostic Panels & Differentials',
@@ -232,6 +246,14 @@ export function App() {
     timeline: t('timeline') || 'Medical Event History & Audit Log',
     copilot: t('aiCopilot') || 'VitaCare AI Clinical Health Copilot',
     guardians: t('guardians') || 'Authorized Healthcare Proxies & Guardians',
+    alerts: 'Emergency Help & SOS Dispatches',
+    symptoms: 'Symptom Guidance & Clinical Triage',
+    appointments: 'Doctor Consultations & Appointments',
+    dictionary: 'Medical Dictionary & Clinical Glossary',
+    library: 'Health Education Library & Wellness Guides',
+    hospitals: 'Nearby Hospitals & 24/7 Emergency Centers',
+    wellness: 'Wellness, Hydration & Nutrition Tracker',
+    privacy: 'Account Profile, Privacy & Consent Directives',
     admin: t('adminPanel') || 'Administrator Control Center & Dynamic CMS'
   };
 
@@ -245,6 +267,7 @@ export function App() {
         onClose={() => setIsSidebarOpen(false)}
         portalMode={portalMode}
         onSwitchPortal={switchPortal}
+        onOpenAccessibility={() => setIsAccessibilityOpen(true)}
       />
 
       {/* 2. MAIN APPLICATION CONTENT AREA */}
@@ -260,6 +283,8 @@ export function App() {
           demoLoading={demoLoading}
           portalMode={portalMode}
           onSwitchPortal={switchPortal}
+          onOpenAccessibility={() => setIsAccessibilityOpen(true)}
+          setActiveView={setActiveView}
         />
 
         {/* Demo Data Feedback Banner */}
@@ -352,16 +377,89 @@ export function App() {
                 <AiCopilotView />
               )}
 
+              {activeView === 'symptoms' && (
+                <SymptomGuidanceView />
+              )}
+
+              {activeView === 'appointments' && (
+                <AppointmentsView />
+              )}
+
+              {activeView === 'dictionary' && (
+                <MedicalDictionaryView />
+              )}
+
+              {activeView === 'library' && (
+                <HealthLibraryView />
+              )}
+
+              {activeView === 'hospitals' && (
+                <HospitalsFinderView onOpenSos={() => setIsSosModalOpen(true)} />
+              )}
+
+              {activeView === 'wellness' && (
+                <WellnessNutritionView />
+              )}
+
+              {activeView === 'privacy' && (
+                <PrivacySettingsView onOpenAccessibility={() => setIsAccessibilityOpen(true)} />
+              )}
+
               {activeView === 'guardians' && (
                 <GuardianView />
               )}
 
               {activeView === 'alerts' && (
-                <AlertHistoryView />
+                <AlertHistoryView onOpenSos={() => setIsSosModalOpen(true)} />
               )}
             </>
           )}
         </main>
+        {/* Mobile Accessible Bottom Navigation Bar: Home, AI Chat, Records, Reminders, Profile */}
+        {portalMode === 'user' && (
+          <nav className="elder-mobile-bottom-nav" aria-label="Quick mobile navigation">
+            <button
+              className={`bottom-nav-item ${activeView === 'dashboard' ? 'active' : ''}`}
+              onClick={() => setActiveView('dashboard')}
+              aria-label="Home Dashboard"
+            >
+              <Home size={22} />
+              <span>Home</span>
+            </button>
+            <button
+              className={`bottom-nav-item ${activeView === 'copilot' ? 'active' : ''}`}
+              onClick={() => setActiveView('copilot')}
+              aria-label="AI Health Chat"
+            >
+              <Bot size={22} />
+              <span>AI Chat</span>
+            </button>
+            <button
+              className={`bottom-nav-item ${activeView === 'reports' ? 'active' : ''}`}
+              onClick={() => setActiveView('reports')}
+              aria-label="Health Records"
+            >
+              <FileText size={22} />
+              <span>Records</span>
+            </button>
+            <button
+              className={`bottom-nav-item ${activeView === 'medicines' ? 'active' : ''}`}
+              onClick={() => setActiveView('medicines')}
+              aria-label="Medication Reminders"
+            >
+              <Pill size={22} />
+              <span>Reminders</span>
+            </button>
+            <button
+              className={`bottom-nav-item ${activeView === 'privacy' ? 'active' : ''}`}
+              onClick={() => setActiveView('privacy')}
+              aria-label="User Profile and Settings"
+            >
+              <User size={22} />
+              <span>Profile</span>
+            </button>
+          </nav>
+        )}
       </div>
 
       {/* Global Interactive Modals */}
@@ -418,6 +516,10 @@ export function App() {
           }}
         />
       )}
+      <AccessibilitySettingsModal
+        isOpen={isAccessibilityOpen}
+        onClose={() => setIsAccessibilityOpen(false)}
+      />
     </div>
   );
 }

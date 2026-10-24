@@ -22,9 +22,10 @@ export const AuthProvider = ({ children }) => {
       setUser(data.user);
       setProfile(data.profile);
 
-      // Requirement 4: Set saved user language
+      // Set and notify saved user language
       if (data.user && data.user.preferredLanguage) {
         localStorage.setItem('vitacare_lang', data.user.preferredLanguage);
+        window.dispatchEvent(new CustomEvent('vitacare_lang_changed', { detail: data.user.preferredLanguage }));
       }
     } catch (err) {
       console.warn('Session expired or invalid, logging out:', err.message);
@@ -46,6 +47,7 @@ export const AuthProvider = ({ children }) => {
     setUser(res.user);
     if (res.user && res.user.preferredLanguage) {
       localStorage.setItem('vitacare_lang', res.user.preferredLanguage);
+      window.dispatchEvent(new CustomEvent('vitacare_lang_changed', { detail: res.user.preferredLanguage }));
     }
     await fetchCurrentUser();
     return res;

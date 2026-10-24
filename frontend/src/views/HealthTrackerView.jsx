@@ -13,6 +13,7 @@ export const HealthTrackerView = ({ onAddReport }) => {
   const [actionMessage, setActionMessage] = useState(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [trackingTargetSchedule, setTrackingTargetSchedule] = useState(null);
+  const [confirmingId, setConfirmingId] = useState(null);
 
   const [manualForm, setManualForm] = useState({
     metricName: '',
@@ -537,10 +538,26 @@ export const HealthTrackerView = ({ onAddReport }) => {
         schedule={trackingTargetSchedule}
         onClose={() => setTrackingTargetSchedule(null)}
         onVerified={(res) => {
+          if (trackingTargetSchedule) {
+            const targetId = trackingTargetSchedule.id;
+            setSchedules(prev => prev.map(s => {
+              if (s.id === targetId || s.scheduleId === targetId || (s.scheduleId && trackingTargetSchedule.scheduleId && s.scheduleId === trackingTargetSchedule.scheduleId && s.scheduledTime === trackingTargetSchedule.scheduledTime)) {
+                return {
+                  ...s,
+                  status: 'Verified',
+                  rawStatus: 'VERIFIED',
+                  taken: true,
+                  takenAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  verifiedVia: 'camera_vision_pipeline'
+                };
+              }
+              return s;
+            }));
+          }
           fetchData();
           setActionMessage({
             type: 'success',
-            text: `✅ ${trackingTargetSchedule?.medicineName} ${t('statusVerified') || 'Verified'}! Guardian alert dispatched to registered proxy.`
+            text: `✅ ${trackingTargetSchedule?.medicineName || trackingTargetSchedule?.name} ${t('statusVerified') || 'Verified'}! Guardian alert dispatched to registered proxy.`
           });
           setTimeout(() => setActionMessage(null), 5000);
         }}

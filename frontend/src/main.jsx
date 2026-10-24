@@ -5,14 +5,17 @@ import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { BrandingProvider } from './context/BrandingContext';
+import { AccessibilityProvider } from './context/AccessibilityContext';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrandingProvider>
       <LanguageProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
+        <AccessibilityProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </AccessibilityProvider>
       </LanguageProvider>
     </BrandingProvider>
   </StrictMode>,

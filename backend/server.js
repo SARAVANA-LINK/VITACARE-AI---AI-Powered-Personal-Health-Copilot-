@@ -34,6 +34,10 @@ app.use('/api/guardians', require('./routes/guardianRoutes'));
 app.use('/api/emergency', require('./routes/emergencyRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/ai', require('./routes/aiCopilotRoutes'));
+app.use('/api/appointments', require('./routes/appointmentRoutes'));
+app.use('/api/symptoms', require('./routes/symptomRoutes'));
+app.use('/api/resources', require('./routes/resourceRoutes'));
+app.use('/api/wellness', require('./routes/wellnessRoutes'));
 app.use('/api/demo', require('./routes/demoRoutes'));
 
 // Public system branding & configuration endpoint (No auth required)
