@@ -354,11 +354,11 @@ export const Sidebar = ({
               color: '#ffffff',
               fontWeight: 700
             }}>
-              {user ? user.name.charAt(0).toUpperCase() : 'P'}
+              {(user?.name || user?.email || 'P').charAt(0).toUpperCase()}
             </div>
             <div className="sidebar-user-meta">
               <div className="sidebar-user-name" style={{ color: 'var(--navy)', fontWeight: 700, fontSize: '0.86rem' }}>
-                {user ? user.name : 'Patient User'}
+                {user?.name || user?.email || 'Patient User'}
               </div>
               <div className="sidebar-user-role" style={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }}>
                 {user?.role === 'admin' ? '🛡️ Administrator' : `Blood: ${user?.bloodGroup || 'O+'}`}

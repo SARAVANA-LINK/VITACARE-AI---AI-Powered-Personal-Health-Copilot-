@@ -31,7 +31,8 @@ import {
   Building2,
   BookOpen,
   Lock,
-  Globe
+  Globe,
+  Users
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { useTranslation } from '../i18n/LanguageContext';

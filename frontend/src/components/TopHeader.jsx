@@ -335,7 +335,7 @@ export const TopHeader = ({
               fontWeight: 800,
               fontSize: '0.85rem'
             }}>
-              {user ? user.name.charAt(0).toUpperCase() : 'P'}
+              {(user?.name || user?.email || 'P').charAt(0).toUpperCase()}
             </div>
             <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy)', maxWidth: '100px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user?.name?.split(' ')[0] || 'User'}

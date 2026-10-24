@@ -6,17 +6,20 @@ import { AuthProvider } from './context/AuthContext';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { BrandingProvider } from './context/BrandingContext';
 import { AccessibilityProvider } from './context/AccessibilityContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrandingProvider>
-      <LanguageProvider>
-        <AccessibilityProvider>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </AccessibilityProvider>
-      </LanguageProvider>
-    </BrandingProvider>
+    <ErrorBoundary>
+      <BrandingProvider>
+        <LanguageProvider>
+          <AccessibilityProvider>
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </AccessibilityProvider>
+        </LanguageProvider>
+      </BrandingProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );
