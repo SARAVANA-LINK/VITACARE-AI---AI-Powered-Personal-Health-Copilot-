@@ -415,7 +415,7 @@ class AiCopilotService {
   /**
    * Invokes Google Gemini Generative AI API with clinical grounding
    */
-  async callGemini(systemPrompt, userMessage) {
+  async callGemini(systemPrompt, userMessage, maxTokens = 350) {
     const apiKey = process.env.GEMINI_API_KEY;
     const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
     if (!apiKey) {
@@ -441,8 +441,8 @@ class AiCopilotService {
             }
           ],
           generationConfig: {
-            temperature: 0.25,
-            maxOutputTokens: 1200
+            temperature: 0.2,
+            maxOutputTokens: maxTokens
           }
         }),
         signal: controller.signal
@@ -527,27 +527,38 @@ Your mission is to help the patient understand their verified medical records, a
 
 CLINICAL & SAFETY OPERATING RULES:
 1. Medical Disclaimer: You are an assistive health copilot and organizer, NOT an emergency response system or licensed medical doctor. Always provide educational clarity and recommend consulting a physician.
-2. Grounding: Ground all statements strictly in the patient's verified health context below. Do not fabricate unrecorded laboratory values or prescriptions.
-3. Response Mode:
-   - "simple": Use plain, everyday language, simple bullet points, and intuitive analogies. Avoid technical jargon.
+2. Grounding: Ground all statements strictly in the patient's verified health context below. Do not fabricate unrecorded laboratory values, diagnoses, or prescriptions.
+3. Short and Sweet Response Structure (CRITICAL):
+   - Default to concise, direct answers. Your complete reply MUST be under 100 words and strictly under 600 characters unless the user explicitly requests more detail.
+   - Format:
+     1. Direct answer.
+     2. One brief explanation.
+     3. One practical next step, if needed.
+   - Avoid long introductory chatter, excessive lists, and redundant disclaimers.
+4. Response Mode:
+   - "simple": Use plain, everyday language, simple bullet points, and intuitive analogies. Avoid technical jargon. Total response must be concise and under 600 characters.
    - "standard": Balanced clinical overview with clear medication adherence guidance.
    - "detailed": Deep biological, biochemical, and physiological context with clinical reference intervals and pathophysiological significance.
-4. Output Language: Formulate your entire response in ${targetLanguage}. Maintain standard clinical metric units intact (e.g. mg/dL, mmHg, g/dL, %).
-5. Emergency Protocol: If any severe symptom is mentioned, instruct the patient to contact local emergency services immediately (911/112/108) or tap Emergency SOS.
+5. Missing Data & Clarifications:
+   - If essential information is missing, ask a single short follow-up question.
+   - If a question cannot be answered reliably from available data, clearly state that limitation.
+6. Output Language: Formulate your entire response in ${targetLanguage}. Maintain standard clinical metric units intact (e.g. mg/dL, mmHg, g/dL, %).
+7. Emergency Protocol: If any severe symptom is mentioned, instruct the patient to contact local emergency services immediately (911/112/108) or tap Emergency SOS.
 
 PATIENT'S VERIFIED HEALTH CONTEXT:
 - Patient Name: ${user?.name || 'Patient'}
 - Blood Group: ${user?.bloodGroup || 'Not specified'}
 - Allergies: ${(profile?.allergies && profile.allergies.length > 0) ? (Array.isArray(profile.allergies) ? profile.allergies.join(', ') : profile.allergies) : 'None recorded'}
 - Chronic Conditions: ${(profile?.chronicConditions && profile.chronicConditions.length > 0) ? (Array.isArray(profile.chronicConditions) ? profile.chronicConditions.join(', ') : profile.chronicConditions) : 'None recorded'}
-- Active Medications (${medicines.length}): ${medicines.map(m => `${m.name} (${m.dosage}, ${m.frequency})`).join('; ') || 'No active medications'}
+- Active Medications (${medicines.length}): ${medicines.map(m => `${m.name} (${m.dosage}, ${m.frequency})`).join('; ') || 'No active medications recorded'}
 - Today's Dose Schedule (${todaySchedules.length}): ${todaySchedules.map(s => `${s.scheduledTime} - ${s.medicineName} (${s.dosage}) [Status: ${s.status}]`).join('; ') || 'No doses scheduled for today'}
 - Recent Tracked Vitals (${vitals.length}): ${vitals.slice(-6).map(v => `${v.metricName}: ${v.value} ${v.unit} (Ref: ${v.referenceRange || 'Standard'}, Date: ${v.date})`).join('; ') || 'No vitals recorded'}
 - Verified Diagnostic Reports (${reports.length}): ${reports.slice(-3).map(r => `${r.reportType} from ${r.labName} (${r.reportDate})`).join('; ') || 'No reports uploaded'}
 - Current Response Mode: ${mode.toUpperCase()}
 `;
 
-    const geminiReply = await this.callGemini(systemPrompt, userMessage);
+    const maxTokens = mode === 'simple' ? 220 : 800;
+    const geminiReply = await this.callGemini(systemPrompt, userMessage, maxTokens);
     if (geminiReply) {
       const finalReply = `${geminiReply}\n\n---\n*${loc.disclaimer}*`;
 
@@ -738,9 +749,9 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
       reply += loc.activeMedsSummary.replace('{{count}}', medicines.length);
       reply += loc.todayDosesSummary.replace('{{count}}', todaySchedules.length);
       reply += loc.reportsSummary.replace('{{count}}', reports.length);
-      reply += loc.vitalsSummary.replace('{{count}}', vitals.length);
-      if (profile && profile.allergies && profile.allergies.length > 0) {
-        reply += loc.allergiesSummary.replace('{{allergies}}', profile.allergies.join(', '));
+      if (profile && profile.allergies && (Array.isArray(profile.allergies) ? profile.allergies.length > 0 : !!profile.allergies)) {
+        const allergyStr = Array.isArray(profile.allergies) ? profile.allergies.join(', ') : profile.allergies;
+        reply += loc.allergiesSummary.replace('{{allergies}}', allergyStr);
       }
       reply += loc.suggestedHeader;
     }
@@ -791,6 +802,45 @@ PATIENT'S VERIFIED HEALTH CONTEXT:
         reportsCount: reports.length,
         medicinesCount: medicines.length
       },
+      disclaimer: loc.disclaimer
+    };
+  }
+
+  /**
+   * Deterministic local clinical fallback engine when AI provider is offline or unreachable
+   */
+  generateLocalFallback(userId, userMessage, lang = 'en', mode = 'simple') {
+    const loc = AI_LOCALES[lang] || AI_LOCALES['en'];
+    const query = (userMessage || '').toLowerCase();
+    const vitals = db.find('vitals', v => v.userId === userId);
+    const medicines = db.find('medicines', m => m.userId === userId && m.isActive);
+    const today = new Date().toISOString().split('T')[0];
+    const todaySchedules = db.find('medicine_schedules', s => s.userId === userId && s.scheduledDate === today);
+
+    let reply = '';
+    const userDataCitations = [];
+
+    if (query.includes('medicine') || query.includes('schedule') || query.includes('pills') || query.includes('tablets')) {
+      if (todaySchedules.length > 0) {
+        reply += loc.medScheduleHeader;
+        todaySchedules.forEach(s => {
+          reply += `• **${s.scheduledTime}** — **${s.medicineName}** (${s.dosage})\n`;
+          userDataCitations.push(`${s.medicineName} ${loc.medScheduledFor} ${s.scheduledTime}`);
+        });
+      } else {
+        reply += loc.noMedsToday;
+      }
+    } else if (query.includes('blood pressure') || query.includes('bp') || query.includes('pressure')) {
+      reply += "Blood pressure measures the force of blood circulating against the walls of blood vessels. Normal resting blood pressure is generally under 120/80 mmHg. Maintain balanced nutrition, regular physical activity, and review measurements with your physician.";
+    } else {
+      reply += loc.generalHealthIntro || "VitaCare AI organizes and explains your verified medical records. Please consult your physician for individualized medical diagnosis.";
+    }
+
+    return {
+      reply: `${reply}\n\n---\n*${loc.disclaimer}*`,
+      mode,
+      language: lang,
+      userDataCitations,
       disclaimer: loc.disclaimer
     };
   }

@@ -26,3 +26,7 @@ vitacare-ai-complete.zip
 .env.local
 *.env
 backend/.env
+
+# Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep

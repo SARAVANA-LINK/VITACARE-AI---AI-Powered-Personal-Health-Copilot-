@@ -258,10 +258,10 @@ class ApiClient {
   }
 
   // CareConnect
-  startCareConnect(caregiverId, medicineId, scheduleId) {
+  startCareConnect(caregiverId, medicineId, scheduleId, recipientName) {
     return this.request('/careconnect/start', {
       method: 'POST',
-      body: JSON.stringify({ caregiverId, medicineId, scheduleId })
+      body: JSON.stringify({ caregiverId, medicineId, scheduleId, recipientName })
     });
   }
 
@@ -272,11 +272,22 @@ class ApiClient {
     });
   }
 
-  endCareConnect(sessionId) {
+  endCareConnect(sessionId, durationSeconds = 0, notes = '') {
     return this.request('/careconnect/end', {
       method: 'POST',
-      body: JSON.stringify({ sessionId })
+      body: JSON.stringify({ sessionId, durationSeconds, notes })
     });
+  }
+
+  sendCareConnectSignal(sessionId, type, payload) {
+    return this.request('/careconnect/signal', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, type, payload })
+    });
+  }
+
+  getCareConnectSignal(sessionId) {
+    return this.request(`/careconnect/signal/${sessionId}`);
   }
 
   getCareConnectSessions() {

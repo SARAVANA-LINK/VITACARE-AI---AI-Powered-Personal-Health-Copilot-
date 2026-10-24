@@ -6,13 +6,18 @@ import { useTranslation } from '../i18n/LanguageContext';
 export const CareConnectView = ({ onStartVideoCheckIn }) => {
   const { t } = useTranslation();
   const [sessions, setSessions] = useState([]);
+  const [guardians, setGuardians] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchSessions = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.getCareConnectSessions();
-      setSessions(res.sessions || []);
+      const [sessRes, guardRes] = await Promise.all([
+        api.getCareConnectSessions(),
+        api.getGuardians().catch(() => ({ guardians: [] }))
+      ]);
+      setSessions(sessRes.sessions || []);
+      setGuardians(guardRes.guardians || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -21,8 +26,10 @@ export const CareConnectView = ({ onStartVideoCheckIn }) => {
   };
 
   useEffect(() => {
-    fetchSessions();
+    fetchData();
   }, []);
+
+  const primaryGuardian = guardians.find(g => g.isPrimary) || guardians[0];
 
   return (
     <div>
@@ -157,39 +164,49 @@ export const CareConnectView = ({ onStartVideoCheckIn }) => {
             <span className="badge badge-green">{t('activeBadge')}</span>
           </div>
 
-          <div style={{ textAlign: 'center', padding: '16px 0' }}>
-            <div style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-              color: '#fff',
-              margin: '0 auto 12px auto',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)'
-            }}>
-              <User size={32} />
-            </div>
-            <h4 style={{ fontSize: '1.1rem', color: 'var(--navy)' }}>Eleanor Doe</h4>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              {t('primaryProxy')}
-            </span>
-          </div>
+          {primaryGuardian ? (
+            <>
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  color: '#fff',
+                  margin: '0 auto 12px auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)'
+                }}>
+                  <User size={32} />
+                </div>
+                <h4 style={{ fontSize: '1.1rem', color: 'var(--navy)' }}>{primaryGuardian.name}</h4>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  {primaryGuardian.relationship || 'Primary Guardian'} {primaryGuardian.isPrimary ? '★' : ''}
+                </span>
+              </div>
 
-          <div style={{
-            background: 'var(--bg-alt)',
-            borderRadius: 'var(--radius-md)',
-            padding: '12px 14px',
-            fontSize: '0.8rem',
-            color: 'var(--text-secondary)',
-            marginTop: '10px'
-          }}>
-            <div style={{ marginBottom: '4px' }}>{t('phoneLabel')}: <strong>+1 (555) 774-8833</strong></div>
-            <div style={{ marginBottom: '4px' }}>{t('careConnectAccessLabel')}: <strong>{t('granted')}</strong></div>
-            <div>{t('escalationPermissionsLabel')}: <strong>{t('enabled')}</strong></div>
-          </div>
+              <div style={{
+                background: 'var(--bg-alt)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 14px',
+                fontSize: '0.8rem',
+                color: 'var(--text-secondary)',
+                marginTop: '10px'
+              }}>
+                <div style={{ marginBottom: '4px' }}>{t('phoneLabel')}: <strong>{primaryGuardian.phone || primaryGuardian.phoneNumber || 'On File'}</strong></div>
+                <div style={{ marginBottom: '4px' }}>{t('careConnectAccessLabel')}: <strong>{t('granted')}</strong></div>
+                <div>{t('escalationPermissionsLabel')}: <strong>{primaryGuardian.notifyOnMissed !== false ? t('enabled') : 'Disabled'}</strong></div>
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--text-muted)' }}>
+              <User size={36} style={{ margin: '0 auto 8px auto', opacity: 0.4 }} />
+              <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--navy)' }}>No Guardian Registered</p>
+              <p style={{ fontSize: '0.78rem', marginBottom: '12px' }}>Add a primary guardian to enable video check-ins and emergency escalations.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

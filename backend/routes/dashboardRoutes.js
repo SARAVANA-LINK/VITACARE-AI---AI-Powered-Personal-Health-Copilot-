@@ -72,14 +72,42 @@ router.get('/overview', authenticateToken, (req, res) => {
       }
     }
 
+    // Recent Prescriptions
+    const prescriptions = db.find('prescriptions', p => p.userId === userId);
+    prescriptions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const recentPrescriptions = prescriptions.slice(0, 3);
+
+    // Registered Guardians
+    const guardians = db.find('guardians', g => g.userId === userId);
+
+    // Recent Medicine Alerts & Notifications
+    const alertLogs = db.find('medicine_alerts_history', a => a.userId === userId);
+    alertLogs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const recentAlerts = alertLogs.slice(0, 4);
+
+    // Recent CareConnect Sessions
+    const careSessions = db.find('careconnect_sessions', c => c.userId === userId);
+    careSessions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const recentCareSessions = careSessions.slice(0, 3);
+
+    // Calculate age from profile dob if user.age is absent
+    let calculatedAge = user?.age || null;
+    if (!calculatedAge && profile?.dob) {
+      const birthYear = new Date(profile.dob).getFullYear();
+      if (!isNaN(birthYear)) {
+        calculatedAge = new Date().getFullYear() - birthYear;
+      }
+    }
+
     res.json({
       user: {
         id: user ? user.id : userId,
         name: user ? user.name : 'Patient',
         email: user ? user.email : '',
-        bloodGroup: user ? user.bloodGroup : 'O+',
-        age: user ? user.age : null,
-        emergencyPhone: user ? user.emergencyPhone : ''
+        bloodGroup: user?.bloodGroup || profile?.bloodGroup || null,
+        age: calculatedAge,
+        phone: user?.phone || user?.emergencyPhone || '',
+        preferredLanguage: user?.preferredLanguage || 'en'
       },
       profile: profile || {},
       latestVitals,
@@ -87,6 +115,10 @@ router.get('/overview', authenticateToken, (req, res) => {
       nextMedicine,
       adherence,
       recentReports,
+      recentPrescriptions,
+      guardians,
+      recentAlerts,
+      recentCareSessions,
       recentActivity,
       healthStatusSummary: {
         points: summaryPoints,

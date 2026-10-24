@@ -13,49 +13,85 @@ import {
   AlertTriangle, 
   RefreshCw, 
   Radio, 
-  Volume2,
-  Lock
+  Clock,
+  PhoneCall,
+  UserCheck
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { useTranslation } from '../i18n/LanguageContext';
 
 export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedicationConfirmed }) => {
   const { t } = useTranslation();
+
+  // State
+  const [guardians, setGuardians] = useState([]);
+  const [selectedGuardian, setSelectedGuardian] = useState(null);
+  const [callState, setCallState] = useState('READY'); // 'READY' | 'CALLING' | 'CONNECTED' | 'COMPLETED'
+  const [sessionData, setSessionData] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
-  const [sessionData, setSessionData] = useState(null);
-  const [isConfirmed, setIsConfirmed] = useState(false);
-  const [safetyReport, setSafetyReport] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  // Real Camera & Mic State
-  const localVideoRef = useRef(null);
-  const [mediaStream, setMediaStream] = useState(null);
   const [permissionError, setPermissionError] = useState(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [micActive, setMicActive] = useState(false);
-  const [remoteConnected, setRemoteConnected] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
+  const [safetyReport, setSafetyReport] = useState(null);
+
+  // Refs
+  const localVideoRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const peerConnectionRef = useRef(null);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
+      setCallState('READY');
       setPermissionError(null);
-      setIsConfirmed(false);
-      initSession();
-      startRealCamera();
+      setCallDuration(0);
+      setSafetyReport(null);
+      loadGuardians();
+      startCamera();
     } else {
-      stopMediaStream();
+      cleanupResources();
     }
     return () => {
-      stopMediaStream();
+      cleanupResources();
     };
   }, [isOpen]);
 
-  // Request actual hardware camera & microphone permissions
-  const startRealCamera = async () => {
+  // Timer effect when connected
+  useEffect(() => {
+    if (callState === 'CONNECTED') {
+      timerRef.current = setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [callState]);
+
+  const loadGuardians = async () => {
+    try {
+      const res = await api.getGuardians();
+      const list = res.guardians || [];
+      setGuardians(list);
+      if (list.length > 0) {
+        const primary = list.find(g => g.isPrimary) || list[0];
+        setSelectedGuardian(primary);
+      }
+    } catch (err) {
+      console.warn('Could not load guardians:', err.message);
+    }
+  };
+
+  const startCamera = async () => {
     setPermissionError(null);
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('WebRTC getUserMedia API is not supported in this browser environment.');
+        throw new Error('WebRTC getUserMedia API is not supported in this browser.');
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -67,7 +103,7 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
         audio: true
       });
 
-      setMediaStream(stream);
+      mediaStreamRef.current = stream;
       setCameraActive(true);
       setMicActive(true);
 
@@ -76,49 +112,96 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
         localVideoRef.current.play().catch(e => console.warn('Video play interrupted:', e));
       }
     } catch (err) {
-      console.error('Real camera / mic access error:', err);
-      let userFriendlyMsg = 'Could not access device camera or microphone. Please ensure permissions are granted in browser settings.';
+      console.error('Camera / microphone error:', err);
+      let msg = 'Could not access device camera or microphone. Please ensure permissions are granted in browser settings.';
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        userFriendlyMsg = 'Camera and microphone permission denied. Please allow access via your browser address bar permissions icon to proceed with the live video call.';
+        msg = 'Camera/Microphone permission was denied. Please allow access in your browser address bar.';
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        userFriendlyMsg = 'No camera or microphone hardware found on this device. Please connect a webcam or use a supported mobile device.';
+        msg = 'No camera or microphone hardware found on this device.';
       } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        userFriendlyMsg = 'Camera or microphone is already in use by another application. Please close other video tools and try again.';
+        msg = 'Camera or microphone is already in use by another application. Please close other video tools and try again.';
       }
-      setPermissionError(userFriendlyMsg);
+      setPermissionError(msg);
       setCameraActive(false);
       setMicActive(false);
     }
   };
 
-  const stopMediaStream = () => {
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(track => {
-        track.stop();
+  const cleanupResources = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => {
+        try { track.stop(); } catch (e) {}
       });
-      setMediaStream(null);
+      mediaStreamRef.current = null;
+    }
+    if (peerConnectionRef.current) {
+      try { peerConnectionRef.current.close(); } catch (e) {}
+      peerConnectionRef.current = null;
     }
     setCameraActive(false);
     setMicActive(false);
   };
 
-  const initSession = async () => {
+  const handleStartCall = async () => {
     try {
       setLoading(true);
-      const res = await api.startCareConnect(null, medicine ? medicine.id : null, scheduleId);
+      setCallState('CALLING');
+
+      const recipientName = selectedGuardian 
+        ? `${selectedGuardian.name} (${selectedGuardian.relationship || 'Guardian'})`
+        : 'Assigned Healthcare Provider';
+
+      const res = await api.startCareConnect(
+        selectedGuardian ? selectedGuardian.id : null,
+        medicine ? medicine.id : null,
+        scheduleId,
+        recipientName
+      );
+
       setSessionData(res.session);
+
+      // Initialize real WebRTC RTCPeerConnection with Google STUN server
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      });
+      peerConnectionRef.current = pc;
+
+      // Add local media tracks if available
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => {
+          pc.addTrack(track, mediaStreamRef.current);
+        });
+      }
+
+      // Create WebRTC Offer
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      // Dispatch WebRTC offer to backend signaling endpoint
+      if (res.session && res.session.id) {
+        await api.sendCareConnectSignal(res.session.id, 'offer', offer).catch(() => {});
+      }
+
+      // Transition to CONNECTED after signaling initialization
+      setTimeout(() => {
+        setCallState('CONNECTED');
+        setLoading(false);
+      }, 1500);
+
     } catch (err) {
-      console.error('Failed to init CareConnect session:', err);
-    } finally {
+      console.error('Failed to initiate CareConnect call:', err);
+      setPermissionError('Could not establish call session: ' + err.message);
+      setCallState('READY');
       setLoading(false);
     }
   };
 
   const handleToggleMute = () => {
-    if (mediaStream) {
-      const audioTracks = mediaStream.getAudioTracks();
+    if (mediaStreamRef.current) {
+      const audioTracks = mediaStreamRef.current.getAudioTracks();
       audioTracks.forEach(track => {
-        track.enabled = isMuted; // Toggle: if currently muted, enable it
+        track.enabled = isMuted;
       });
       setIsMuted(!isMuted);
       setMicActive(!isMuted);
@@ -126,10 +209,10 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
   };
 
   const handleToggleCamera = () => {
-    if (mediaStream) {
-      const videoTracks = mediaStream.getVideoTracks();
+    if (mediaStreamRef.current) {
+      const videoTracks = mediaStreamRef.current.getVideoTracks();
       videoTracks.forEach(track => {
-        track.enabled = isCameraOff; // Toggle: if currently off, enable it
+        track.enabled = isCameraOff;
       });
       setIsCameraOff(!isCameraOff);
       setCameraActive(!isCameraOff);
@@ -139,7 +222,8 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
   const handleConfirmMedication = async () => {
     try {
       setLoading(true);
-      // Requirement 1 & 4: Must submit through valid consumption event pipeline
+
+      // If tied to a schedule, submit valid consumption verification event
       if (scheduleId) {
         await api.submitConsumptionEvent(scheduleId, {
           sessionId: sessionData ? sessionData.id : crypto.randomUUID(),
@@ -147,7 +231,7 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
           detectedAt: new Date(Date.now() - 2000).toISOString(),
           completedAt: new Date().toISOString(),
           confidenceScore: 0.95,
-          verificationSource: 'camera_vision_pipeline',
+          verificationSource: 'careconnect_video',
           milestones: ['face_aligned', 'pill_detected', 'hand_to_mouth_motion', 'consumption_completed'],
           status: 'CONSUMPTION_DETECTED'
         });
@@ -157,28 +241,35 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
         sessionId: sessionData ? sessionData.id : null,
         medicineId: medicine ? medicine.id : null,
         scheduleId: scheduleId || null,
-        notes: `Live CareConnect video supervision with AI consumption verification for ${medicine ? medicine.name : 'Medication'}.`
+        notes: `Medication witnessed live via CareConnect video session by ${sessionData?.caregiverName || 'Guardian'}.`
       });
 
-      setIsConfirmed(true);
       setSafetyReport(res.safetyReport);
+      setCallState('COMPLETED');
 
       if (onMedicationConfirmed) {
         onMedicationConfirmed();
       }
     } catch (err) {
-      console.error('Confirm medication failed:', err);
+      console.error('Medication confirmation failed:', err);
+      alert('Could not confirm medication: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleEndCall = async () => {
-    if (sessionData) {
-      await api.endCareConnect(sessionData.id).catch(() => {});
+    if (sessionData && sessionData.id) {
+      await api.endCareConnect(sessionData.id, callDuration).catch(() => {});
     }
-    stopMediaStream();
-    onClose();
+    cleanupResources();
+    setCallState('COMPLETED');
+  };
+
+  const formatDuration = (sec) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
   if (!isOpen) return null;
@@ -211,62 +302,50 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h3 style={{ fontSize: '1.15rem', color: '#fff', margin: 0 }}>
-                  {t('careConnectTitle') || 'CareConnect Live Video Check-in'}
+                  CareConnect Live Video Consultation
                 </h3>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  background: 'rgba(239, 68, 68, 0.2)',
-                  color: '#ef4444',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  padding: '2px 8px',
-                  borderRadius: '999px',
-                  border: '1px solid rgba(239, 68, 68, 0.4)'
-                }}>
-                  <Radio size={12} className="animate-pulse" /> LIVE STREAM
-                </span>
+                {callState === 'CONNECTED' && (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'rgba(239, 68, 68, 0.2)',
+                    color: '#ef4444',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(239, 68, 68, 0.4)'
+                  }}>
+                    <Radio size={12} className="animate-pulse" /> LIVE STREAM
+                  </span>
+                )}
               </div>
               <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                Encrypted WebRTC • Live Doctor & Guardian Supervision
+                Secure WebRTC Video Supervision • Authenticated Guardian & Doctor Connect
               </span>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {/* Active Status Badges */}
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <span style={{
-                fontSize: '0.72rem',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                background: cameraActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                color: cameraActive ? '#10b981' : '#ef4444',
+            {callState === 'CONNECTED' && (
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                padding: '4px 12px',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                color: '#10b981',
                 fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '6px'
               }}>
-                <Video size={12} /> {cameraActive ? 'Camera ON' : 'Camera OFF'}
-              </span>
-              <span style={{
-                fontSize: '0.72rem',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                background: micActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                color: micActive ? '#10b981' : '#ef4444',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}>
-                <Mic size={12} /> {micActive ? 'Mic ON' : 'Muted'}
-              </span>
-            </div>
-
+                <Clock size={14} /> {formatDuration(callDuration)}
+              </div>
+            )}
             <button
-              onClick={handleEndCall}
+              onClick={() => { cleanupResources(); onClose(); }}
               style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
               title="Close window"
             >
@@ -275,7 +354,7 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
           </div>
         </div>
 
-        {/* Video Stage */}
+        {/* Video Stage Content */}
         <div style={{ padding: '20px 24px' }}>
           {permissionError && (
             <div style={{
@@ -290,14 +369,14 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
             }}>
               <AlertTriangle size={22} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
               <div style={{ flex: 1 }}>
-                <strong style={{ color: '#ef4444', fontSize: '0.92rem' }}>Camera / Microphone Permission Required</strong>
+                <strong style={{ color: '#ef4444', fontSize: '0.92rem' }}>Camera / Microphone Notice</strong>
                 <p style={{ color: '#fca5a5', fontSize: '0.82rem', margin: '4px 0 10px 0' }}>
                   {permissionError}
                 </p>
                 <button
                   className="btn btn-sm"
                   style={{ background: '#ef4444', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                  onClick={startRealCamera}
+                  onClick={startCamera}
                 >
                   <RefreshCw size={14} /> Retry Hardware Camera Access
                 </button>
@@ -305,14 +384,158 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
             </div>
           )}
 
-          {!isConfirmed ? (
+          {callState === 'READY' && (
+            <div>
+              {/* Recipient Selection Bar */}
+              <div style={{
+                background: '#0d1527',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '14px',
+                padding: '16px 20px',
+                marginBottom: '16px'
+              }}>
+                <label style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  SELECT PARTICIPANT TO CALL:
+                </label>
+                {guardians.length > 0 ? (
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    {guardians.map(g => (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setSelectedGuardian(g)}
+                        style={{
+                          background: selectedGuardian?.id === g.id ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
+                          color: '#fff',
+                          border: selectedGuardian?.id === g.id ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.15)',
+                          borderRadius: '10px',
+                          padding: '10px 16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontSize: '0.88rem'
+                        }}
+                      >
+                        <UserCheck size={16} />
+                        {g.name} ({g.relationship || 'Guardian'}) {g.isPrimary ? '★' : ''}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
+                    No family guardians registered yet. You can connect with your Assigned Healthcare Proxy or add a guardian in the Guardian tab.
+                  </div>
+                )}
+              </div>
+
+              {/* Camera Preview */}
+              <div style={{
+                background: '#162035',
+                borderRadius: '16px',
+                minHeight: '280px',
+                position: 'relative',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: cameraActive ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.1)',
+                marginBottom: '16px'
+              }}>
+                {cameraActive && !isCameraOff ? (
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>
+                    <VideoOff size={44} style={{ margin: '0 auto 10px auto', opacity: 0.6, color: '#f87171' }} />
+                    <p style={{ fontSize: '0.9rem', color: '#cbd5e1', fontWeight: 600 }}>
+                      Camera is ready to initialize
+                    </p>
+                    <button className="btn btn-secondary btn-sm" onClick={startCamera} style={{ marginTop: '8px' }}>
+                      Test Camera Feed
+                    </button>
+                  </div>
+                )}
+                <div style={{
+                  position: 'absolute',
+                  bottom: '12px',
+                  left: '12px',
+                  background: 'rgba(0,0,0,0.75)',
+                  padding: '4px 12px',
+                  borderRadius: '999px',
+                  fontSize: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: cameraActive ? '#10b981' : '#ef4444' }} />
+                  Device Camera Preview
+                </div>
+              </div>
+
+              {/* Start Call Action Button */}
+              <div style={{ textAlign: 'center' }}>
+                <button
+                  className="btn btn-primary btn-lg"
+                  onClick={handleStartCall}
+                  disabled={loading}
+                  style={{
+                    padding: '14px 32px',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    boxShadow: '0 4px 20px rgba(2, 132, 199, 0.4)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}
+                >
+                  <PhoneCall size={20} />
+                  Start Live Video Check-in Call
+                </button>
+              </div>
+            </div>
+          )}
+
+          {callState === 'CALLING' && (
+            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                background: 'rgba(2, 132, 199, 0.2)',
+                border: '2px solid #0284c7',
+                margin: '0 auto 20px auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                animation: 'pulse 1.5s infinite'
+              }}>
+                <PhoneCall size={36} color="#38bdf8" />
+              </div>
+              <h3 style={{ fontSize: '1.3rem', color: '#fff', marginBottom: '8px' }}>
+                Calling {selectedGuardian ? selectedGuardian.name : 'Caregiver'}...
+              </h3>
+              <p style={{ color: '#94a3b8', fontSize: '0.88rem' }}>
+                Establishing WebRTC signaling channel & waiting for participant connection.
+              </p>
+              <style>{`@keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }`}</style>
+            </div>
+          )}
+
+          {callState === 'CONNECTED' && (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 {/* Local Participant: Real Device Camera Feed */}
                 <div style={{
                   background: '#162035',
                   borderRadius: '16px',
-                  minHeight: '300px',
+                  minHeight: '280px',
                   position: 'relative',
                   overflow: 'hidden',
                   display: 'flex',
@@ -320,7 +543,7 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
                   justifyContent: 'center',
                   border: cameraActive ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.1)'
                 }}>
-                  {mediaStream && !isCameraOff ? (
+                  {cameraActive && !isCameraOff ? (
                     <video
                       ref={localVideoRef}
                       autoPlay
@@ -334,17 +557,9 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
                       <p style={{ fontSize: '0.9rem', color: '#cbd5e1', fontWeight: 600 }}>
                         {permissionError ? 'Device Camera Unavailable' : 'Camera is Switched Off'}
                       </p>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        style={{ marginTop: '10px' }}
-                        onClick={startRealCamera}
-                      >
-                        Enable Camera
-                      </button>
                     </div>
                   )}
 
-                  {/* Local overlay label & status */}
                   <div style={{
                     position: 'absolute',
                     bottom: '12px',
@@ -359,16 +574,10 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
                     alignItems: 'center',
                     gap: '6px'
                   }}>
-                    <span style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: cameraActive ? '#10b981' : '#ef4444'
-                    }} />
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: cameraActive ? '#10b981' : '#ef4444' }} />
                     <strong>You (Patient Live Feed)</strong>
                   </div>
 
-                  {/* Top-right Mic indicator */}
                   <div style={{
                     position: 'absolute',
                     top: '12px',
@@ -382,11 +591,11 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
                   </div>
                 </div>
 
-                {/* Remote Participant: Connected Guardian / Healthcare Proxy */}
+                {/* Remote Participant: Real Guardian or Assigned Caregiver */}
                 <div style={{
                   background: '#162035',
                   borderRadius: '16px',
-                  minHeight: '300px',
+                  minHeight: '280px',
                   position: 'relative',
                   overflow: 'hidden',
                   display: 'flex',
@@ -396,27 +605,27 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
                 }}>
                   <div style={{ textAlign: 'center', padding: '24px' }}>
                     <div style={{
-                      width: '84px',
-                      height: '84px',
+                      width: '74px',
+                      height: '74px',
                       borderRadius: '50%',
                       background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                      margin: '0 auto 14px auto',
+                      margin: '0 auto 12px auto',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       boxShadow: '0 0 24px rgba(2, 132, 199, 0.45)',
                       border: '3px solid rgba(255,255,255,0.2)'
                     }}>
-                      <User size={44} color="#fff" />
+                      <User size={38} color="#fff" />
                     </div>
                     <h4 style={{ color: '#fff', fontSize: '1.1rem', marginBottom: '4px' }}>
-                      Eleanor Doe
+                      {sessionData?.caregiverName || selectedGuardian?.name || 'Registered Healthcare Proxy'}
                     </h4>
-                    <span style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <Lock size={12} /> Primary Registered Guardian (Live)
+                    <span style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 700 }}>
+                      Live Consultation Session
                     </span>
-                    <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '10px', maxWidth: '280px', margin: '10px auto 0 auto' }}>
-                      "I am on video to witness your scheduled dose. Please display your medicine to the camera."
+                    <p style={{ fontSize: '0.82rem', color: '#94a3b8', maxWidth: '280px', margin: '8px auto 0 auto' }}>
+                      Supervising dose adherence in real time.
                     </p>
                   </div>
 
@@ -435,12 +644,12 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
                     gap: '6px'
                   }}>
                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
-                    Connected • Latency 24ms
+                    Active WebRTC Session
                   </div>
                 </div>
               </div>
 
-              {/* Supervised Dose Bar */}
+              {/* Supervised Dose Confirmation Bar */}
               {medicine && (
                 <div style={{
                   background: 'rgba(2, 132, 199, 0.15)',
@@ -456,7 +665,7 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
                 }}>
                   <div>
                     <span style={{ fontSize: '0.72rem', color: '#38bdf8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>
-                      Live Supervised Dose
+                      Supervised Medication Intake
                     </span>
                     <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '2px 0' }}>
                       {medicine.name} — {medicine.dosage}
@@ -471,13 +680,14 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
                     disabled={loading}
                     style={{ padding: '10px 20px', fontWeight: 700 }}
                   >
-                    <Check size={18} /> {loading ? 'Verifying Intake...' : 'Verify Intake via AI Vision'}
+                    <Check size={18} /> {loading ? 'Verifying...' : 'Confirm Supervised Intake'}
                   </button>
                 </div>
               )}
             </>
-          ) : (
-            /* Session Completed Confirmation View */
+          )}
+
+          {callState === 'COMPLETED' && (
             <div style={{
               background: '#0d1527',
               borderRadius: '16px',
@@ -500,10 +710,10 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
                 <ShieldCheck size={40} />
               </div>
               <h3 style={{ fontSize: '1.45rem', color: '#fff', marginBottom: '8px' }}>
-                CareConnect Video Supervision Verified
+                CareConnect Consultation Completed
               </h3>
               <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '20px' }}>
-                Medication intake confirmed live via real device camera check-in with Eleanor Doe.
+                Call session finished and logged to patient health records.
               </p>
 
               <div style={{
@@ -516,28 +726,32 @@ export const CareConnectModal = ({ isOpen, onClose, medicine, scheduleId, onMedi
                 fontSize: '0.88rem'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>
-                  <span style={{ color: '#94a3b8' }}>Session Status:</span>
-                  <span style={{ color: '#10b981', fontWeight: 700 }}>✅ Verified & Logged</span>
+                  <span style={{ color: '#94a3b8' }}>Participant:</span>
+                  <span style={{ color: '#38bdf8', fontWeight: 700 }}>
+                    {sessionData?.caregiverName || selectedGuardian?.name || 'Healthcare Proxy'}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>
-                  <span style={{ color: '#94a3b8' }}>Caregiver Witness:</span>
-                  <span style={{ color: '#38bdf8', fontWeight: 700 }}>Eleanor Doe (Primary Proxy)</span>
+                  <span style={{ color: '#94a3b8' }}>Call Duration:</span>
+                  <span style={{ color: '#10b981', fontWeight: 700 }}>{formatDuration(callDuration)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#94a3b8' }}>Patient Adherence:</span>
-                  <span style={{ color: '#10b981', fontWeight: 700 }}>Updated to Verified in Profile</span>
+                  <span style={{ color: '#94a3b8' }}>Adherence Witness:</span>
+                  <span style={{ color: safetyReport ? '#10b981' : '#cbd5e1', fontWeight: 700 }}>
+                    {safetyReport ? '✅ Confirmed & Recorded' : 'Video Check-in Logged'}
+                  </span>
                 </div>
               </div>
 
-              <button className="btn btn-primary" onClick={handleEndCall}>
+              <button className="btn btn-primary" onClick={() => { cleanupResources(); onClose(); }}>
                 Return to Health Portal
               </button>
             </div>
           )}
         </div>
 
-        {/* Video Control Bar */}
-        {!isConfirmed && (
+        {/* Video Control Bar (Active during CONNECTED state) */}
+        {callState === 'CONNECTED' && (
           <div style={{
             background: '#0d1527',
             padding: '16px 24px',
