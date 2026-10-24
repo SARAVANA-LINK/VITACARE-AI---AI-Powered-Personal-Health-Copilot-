@@ -30,16 +30,17 @@ const upload = multer({
 });
 
 // POST /api/prescriptions/upload (File or Base64 camera capture)
-router.post('/upload', authenticateToken, upload.single('document'), async (req, res) => {
+router.post('/upload', authenticateToken, upload.any(), async (req, res) => {
   try {
     let filePath = '';
     let originalName = 'prescription_capture.png';
     let mimeType = 'image/png';
 
-    if (req.file) {
-      filePath = req.file.path;
-      originalName = req.file.originalname;
-      mimeType = req.file.mimetype;
+    const file = (req.files && req.files.length > 0) ? req.files[0] : req.file;
+    if (file) {
+      filePath = file.path;
+      originalName = file.originalname;
+      mimeType = file.mimetype;
     } else if (req.body.imageBase64) {
       // Process camera capture base64
       const matches = req.body.imageBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
@@ -148,7 +149,7 @@ router.post('/verify', authenticateToken, (req, res) => {
         userId: req.user.id,
         prescriptionId: savedRx.id,
         name: med.medicineName,
-        dosage: med.dosage || 'Standard dose',
+        dosage: med.dosage || med.strength || 'Standard dose',
         frequency: med.frequency || 'Once daily',
         intakeTimes: Array.isArray(med.intakeTimes) && med.intakeTimes.length > 0 ? med.intakeTimes : ['08:00 AM'],
         duration: med.duration || '7 days',

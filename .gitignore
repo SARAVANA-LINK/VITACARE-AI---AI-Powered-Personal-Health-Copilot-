@@ -55,4 +55,4 @@ ENV/
 *.sqlite3
 backend_py/vitacare.db
 backend/data/vitacare_db.json.bak
-
+*.traineddata

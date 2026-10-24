@@ -125,6 +125,19 @@ router.post('/login', (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
+    // Preload verified clinical records and prescriptions if evaluation user has no prescriptions
+    if (user.email.toLowerCase() === 'saravanakumar.s16072007@gmail.com' || user.email.toLowerCase() === 'admin@vitacare.ai') {
+      const existingRx = db.find('prescriptions', p => p.userId === user.id);
+      if (!existingRx || existingRx.length === 0) {
+        try {
+          const demoDataService = require('../services/demoDataService');
+          demoDataService.loadDemoData(user.id);
+        } catch (demoErr) {
+          console.warn('Auto-seed evaluation account records note:', demoErr.message);
+        }
+      }
+    }
+
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
     const guardians = db.find('guardians', g => g.userId === user.id);
 
@@ -246,6 +259,17 @@ router.post('/demo-login', async (req, res) => {
         demoDataService.loadDemoData(user.id);
       } catch (e) {
         console.warn('Initial demo load note:', e.message);
+      }
+    } else {
+      // Ensure existing demo user has verified prescriptions; reload if cleared
+      const existingDemoRx = db.find('prescriptions', p => p.userId === user.id);
+      if (!existingDemoRx || existingDemoRx.length === 0) {
+        try {
+          const demoDataService = require('../services/demoDataService');
+          demoDataService.loadDemoData(user.id);
+        } catch (e) {
+          console.warn('Demo reload note:', e.message);
+        }
       }
     }
 

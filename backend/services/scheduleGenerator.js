@@ -43,7 +43,7 @@ class ScheduleGenerator {
         );
 
         if (!existing) {
-          const scheduleRecord = db.insert('medicine_schedules', {
+          createdEvents.push({
             userId: userId,
             medicineId: medicineId,
             medicineName: medicine.name,
@@ -58,12 +58,15 @@ class ScheduleGenerator {
             reminderSent: false,
             notes: ''
           });
-          createdEvents.push(scheduleRecord);
         }
       }
     }
 
-    return createdEvents;
+    if (createdEvents.length > 0) {
+      return db.insertMany('medicine_schedules', createdEvents);
+    }
+
+    return [];
   }
 
   /**

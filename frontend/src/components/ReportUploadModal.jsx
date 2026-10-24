@@ -126,6 +126,7 @@ export const ReportUploadModal = ({ isOpen, onClose, onSuccess }) => {
     try {
       setIsProcessing(true);
       await api.verifyReport(draft);
+      window.dispatchEvent(new CustomEvent('vitacare_record_added'));
       if (onSuccess) onSuccess();
       handleClose();
     } catch (err) {

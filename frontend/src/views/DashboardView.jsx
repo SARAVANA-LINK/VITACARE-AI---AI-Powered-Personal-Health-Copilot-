@@ -130,10 +130,17 @@ export const DashboardView = ({
 
   useEffect(() => {
     fetchDashboard();
+    const handleRecordAdded = () => {
+      fetchDashboard();
+    };
+    window.addEventListener('vitacare_record_added', handleRecordAdded);
     const interval = setInterval(() => {
       fetchDashboard();
     }, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener('vitacare_record_added', handleRecordAdded);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleAskCopilot = async (qText) => {
@@ -552,7 +559,24 @@ export const DashboardView = ({
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               {t('addFirstRecord') || 'Add your first record when needed.'}
             </span>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button 
+                className="btn btn-sm"
+                style={{ background: '#059669', color: '#ffffff', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                onClick={async () => {
+                  try {
+                    setLoading(true);
+                    await api.loadDemoData();
+                    await fetchDashboard();
+                  } catch (e) {
+                    console.warn('Demo load note:', e);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                <Sparkles size={14} /> Load Sample Health Profile
+              </button>
               <button className="btn btn-primary btn-sm" onClick={onAddPrescription}>
                 <Plus size={14} /> {t('addPrescription') || 'Add Prescription'}
               </button>

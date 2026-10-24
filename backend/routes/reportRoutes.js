@@ -28,16 +28,17 @@ const upload = multer({
 });
 
 // POST /api/reports/upload (Process document via OCR & AI extraction)
-router.post('/upload', authenticateToken, upload.single('document'), async (req, res) => {
+router.post('/upload', authenticateToken, upload.any(), async (req, res) => {
   try {
     let filePath = '';
     let originalName = 'health_report.png';
     let mimeType = 'image/png';
 
-    if (req.file) {
-      filePath = req.file.path;
-      originalName = req.file.originalname;
-      mimeType = req.file.mimetype;
+    const file = (req.files && req.files.length > 0) ? req.files[0] : req.file;
+    if (file) {
+      filePath = file.path;
+      originalName = file.originalname;
+      mimeType = file.mimetype;
     } else if (req.body.imageBase64) {
       const matches = req.body.imageBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
       if (!matches || matches.length !== 3) {

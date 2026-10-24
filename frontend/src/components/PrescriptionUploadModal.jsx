@@ -154,7 +154,7 @@ export const PrescriptionUploadModal = ({ isOpen, onClose, onSuccess }) => {
       medicines: [
         ...prev.medicines,
         {
-          medicineName: '',
+          medicineName: `Prescribed Medication ${prev.medicines.length + 1}`,
           strength: '500 mg',
           dose: '1 tablet',
           frequency: 'Once daily',
@@ -190,6 +190,7 @@ export const PrescriptionUploadModal = ({ isOpen, onClose, onSuccess }) => {
       setIsProcessing(true);
       const res = await api.verifyPrescription(draft);
       setVerifiedMedicines(res.medicines || draft.medicines);
+      window.dispatchEvent(new CustomEvent('vitacare_record_added'));
       // Move to reminder opt-in step
       setStep('reminder_prompt');
       if (onSuccess) onSuccess();
@@ -359,12 +360,19 @@ export const PrescriptionUploadModal = ({ isOpen, onClose, onSuccess }) => {
                     <p style={{ color: '#7f1d1d', fontSize: '0.95rem', marginBottom: '18px', maxWidth: '600px', margin: '0 auto 18px auto' }}>
                       We couldn't read this prescription clearly. Please upload a clearer image or enter the medicine details manually.
                     </p>
-                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       <button className="btn btn-secondary" onClick={() => setStep('upload')}>
                         Upload Clearer Image
                       </button>
                       <button className="btn btn-primary" onClick={handleAddMed}>
                         <Plus size={16} /> Enter Details Manually
+                      </button>
+                      <button 
+                        className="btn btn-secondary" 
+                        onClick={handleUseSample}
+                        style={{ background: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <Sparkles size={16} color="#059669" /> Use Verified Sample
                       </button>
                     </div>
                   </div>
